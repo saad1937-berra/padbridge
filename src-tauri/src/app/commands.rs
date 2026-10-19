@@ -4,7 +4,7 @@
 
 use super::permissions;
 use super::ui_events::{SharedTestSub, TestSub};
-use crate::diagnostics::{export_text, health, DiagnosticsReport};
+use crate::diagnostics::{drift::{self, DriftReport, DriftSample}, export_text, health, DiagnosticsReport};
 use crate::engine::{ActivateResult, ControllerView, Engine, SaveOutcome};
 use crate::error::{codes, AppError, AppResult};
 use crate::profiles::schema::{AppSettings, OutputMode, Profile, ValidationReport};
@@ -140,6 +140,13 @@ pub async fn export_diagnostics(state: State<'_, AppState>, path: String) -> App
     let engine = state.engine.clone();
     let system = blocking(health::collect).await?;
     engine.export_diagnostics(&path, system)
+}
+
+/// Analyse uniquement des positions brutes saisies durant un test volontaire.
+/// Taille et valeurs vérifiées dans le moteur, sans effets de bord.
+#[tauri::command]
+pub fn analyze_stick_drift(samples: Vec<DriftSample>) -> AppResult<DriftReport> {
+    drift::analyze(&samples)
 }
 
 #[tauri::command]

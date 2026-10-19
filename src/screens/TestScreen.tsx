@@ -69,7 +69,7 @@ export function TestScreen({
       const out = await api.saveProfile(draft);
       setSaved(out.profile);
       setDraft(out.profile);
-      setMessage("Réglages enregistrés et appliqués.");
+      setMessage("Profil enregistré. L’aperçu utilise ces réglages ; en mode natif, ils ne modifient pas les commandes reçues par le jeu.");
     } catch (e) {
       setError(toApiError(e));
     }
@@ -84,6 +84,7 @@ export function TestScreen({
   }
 
   const out = sample?.output;
+  const virtualActive = current.mode === "xinput" && current.virtualSessionId !== null;
   return (
     <Page title="Test de la manette" subtitle="Appuyez sur les touches et bougez les sticks : chaque contrôle doit réagir une seule fois.">
       <div className="flex flex-wrap items-center gap-3">
@@ -100,6 +101,12 @@ export function TestScreen({
         {!sample && <span className="muted">En attente d'une première entrée de la manette…</span>}
       </div>
 
+      {!virtualActive && (
+        <div className="notice notice-warn" role="status">
+          <strong>Mode natif : aperçu seulement.</strong> PadBridge lit la manette et calcule le mapping et les zones mortes, mais ne modifie pas les entrées du jeu. Aucune manette virtuelle n’est active.
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card" aria-label="Schéma">
           <h2>Entrées de la manette</h2>
@@ -108,15 +115,15 @@ export function TestScreen({
 
         <section className="card flex flex-col gap-3" aria-label="Axes">
           <h2>Axes et gâchettes</h2>
-          <p className="muted m-0 text-xs">Valeur brute → valeur envoyée au jeu (après zones mortes{dirty ? ", avec vos réglages non enregistrés" : ""}).</p>
+          <p className="muted m-0 text-xs">Valeur brute → valeur calculée après application du profil{dirty ? " (aperçu non enregistré)" : ""}.</p>
           <div className="grid grid-cols-2 gap-3">
             <Meter label="L2 brut" value={sample?.l2Raw ?? 0} />
-            <Meter label="L2 sortie" value={out?.lt ?? 0} />
+            <Meter label="L2 calculé" value={out?.lt ?? 0} />
             <Meter label="R2 brut" value={sample?.r2Raw ?? 0} />
-            <Meter label="R2 sortie" value={out?.rt ?? 0} />
+            <Meter label="R2 calculé" value={out?.rt ?? 0} />
           </div>
           <table className="data">
-            <thead><tr><th>Stick</th><th>X brut</th><th>Y brut</th><th>X sortie</th><th>Y sortie</th></tr></thead>
+            <thead><tr><th>Stick</th><th>X brut</th><th>Y brut</th><th>X calculé</th><th>Y calculé</th></tr></thead>
             <tbody>
               <tr>
                 <th scope="row">Gauche</th>
@@ -131,7 +138,7 @@ export function TestScreen({
             </tbody>
           </table>
           <p className="m-0" aria-live="polite">
-            <strong>Actions envoyées :</strong>{" "}
+            <strong>Actions calculées :</strong>{" "}
             {out?.buttons.length ? out.buttons.map((b) => xButtonLabel[b]).join(", ") : <span className="muted">aucune</span>}
           </p>
         </section>

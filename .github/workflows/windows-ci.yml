@@ -1,0 +1,30 @@
+name: PadBridge Windows CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Check TypeScript and bundle frontend
+        run: npm run build
+      - name: Test Rust engine without desktop dependencies
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features
+      - name: Compile native Windows/Tauri integration
+        run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop

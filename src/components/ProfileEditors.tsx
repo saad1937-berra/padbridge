@@ -34,7 +34,7 @@ export function DeadzoneEditor({ profile, onChange }: { profile: Profile; onChan
         </label>
       ))}
       <p className="muted m-0 text-xs">
-        Limites autorisées : 0 à 0,5. Ces réglages agissent sur la sortie de PadBridge uniquement, pas sur la manette ni son firmware.
+        Limites autorisées : 0 à 0,5. Ces réglages modifient l'aperçu PadBridge. En mode natif, ils ne changent pas les commandes reçues par les jeux.
       </p>
     </div>
   );
@@ -68,7 +68,7 @@ export function MappingEditor({ profile, onChange }: { profile: Profile; onChang
       </div>
       <table className="data">
         <thead>
-          <tr><th>Touche de la manette</th><th>Action envoyée au jeu</th></tr>
+          <tr><th>Touche de la manette</th><th>Action calculée (aperçu)</th></tr>
         </thead>
         <tbody>
           {PS_BUTTONS.map((b) => {

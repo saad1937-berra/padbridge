@@ -1,0 +1,70 @@
+// src-tauri/src/virtual_pad.rs
+//! Couche « sortie virtuelle » : interface interchangeable, facultative.
+//! L'application fonctionne entièrement sans backend (mode natif / diagnostic).
+
+pub mod backend;
+pub mod null_backend;
+pub mod selected_backend;
+
+/// Backend de test en mémoire : permet de vérifier les invariants (PB-010, PB-018).
+#[cfg(test)]
+pub mod mock {
+    use super::backend::*;
+    use crate::error::{codes, AppError, AppResult};
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Default)]
+    pub struct MockShared {
+        pub live: BTreeSet<String>,
+        pub last: BTreeMap<String, OutputState>,
+        pub created: usize,
+        pub destroyed: usize,
+        pub fail_submit: bool,
+    }
+
+    #[derive(Clone, Default)]
+    pub struct MockBackend {
+        pub shared: Arc<Mutex<MockShared>>,
+    }
+
+    impl VirtualPadBackend for MockBackend {
+        fn name(&self) -> &'static str {
+            "mock"
+        }
+
+        fn status(&self) -> BackendStatus {
+            BackendStatus {
+                available: true,
+                name: "mock".into(),
+                code: None,
+                reason: None,
+            }
+        }
+
+        fn create(&mut self, physical_id: &str) -> AppResult<SessionId> {
+            let mut s = self.shared.lock().unwrap();
+            let id = format!("mock-{}-{}", physical_id, s.created);
+            s.created += 1;
+            s.live.insert(id.clone());
+            s.last.insert(id.clone(), OutputState::neutral());
+            Ok(SessionId(id))
+        }
+
+        fn submit(&mut self, session: &SessionId, state: &OutputState) -> AppResult<()> {
+            let mut s = self.shared.lock().unwrap();
+            if s.fail_submit {
+                return Err(AppError::new(codes::BACKEND_SESSION, "échec simulé"));
+            }
+            s.last.insert(session.0.clone(), *state);
+            Ok(())
+        }
+
+        fn destroy(&mut self, session: &SessionId) -> AppResult<()> {
+            let mut s = self.shared.lock().unwrap();
+            s.live.remove(&session.0);
+            s.destroyed += 1;
+            Ok(())
+        }
+    }
+}

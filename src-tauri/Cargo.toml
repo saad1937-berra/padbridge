@@ -1,0 +1,45 @@
+[package]
+name = "padbridge"
+version = "0.1.0"
+description = "PadBridge — compatibilité et personnalisation des manettes PlayStation sous Windows (projet non affilié à Sony)"
+edition = "2021"
+rust-version = "1.77"
+publish = false
+
+[lib]
+name = "padbridge_lib"
+
+[features]
+default = ["desktop"]
+# Lecture HID réelle (Windows uniquement ; sans effet sur les autres systèmes)
+hid = ["dep:hidapi"]
+# Application complète (fenêtre Tauri). Sans cette feature, seul le moteur est compilé :
+#   cargo test --no-default-features
+desktop = [
+    "hid",
+    "dep:tauri",
+    "dep:tauri-build",
+    "dep:tauri-plugin-dialog",
+    "dep:tracing-subscriber",
+    "dep:tracing-appender",
+]
+# Activée automatiquement par `tauri build`
+custom-protocol = ["desktop", "tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", optional = true , features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", optional = true }
+tracing-appender = { version = "0.2", optional = true }
+tauri = { version = "2", optional = true , features = [] }
+tauri-plugin-dialog = { version = "2", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+hidapi = { version = "2", default-features = false, features = ["windows-native"], optional = true }
+
+[dev-dependencies]
+tempfile = "3"

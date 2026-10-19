@@ -92,6 +92,24 @@ export interface InputSample {
   output: OutputState;
 }
 
+export interface DriftSample {
+  left: Stick;
+  right: Stick;
+}
+
+export type DriftStatus = "normal" | "possible_drift" | "movement_detected" | "inconclusive";
+export interface StickDriftResult {
+  status: DriftStatus;
+  meanMagnitude: number;
+  peakMagnitude: number;
+  suspectRatio: number;
+}
+export interface DriftReport {
+  sampleCount: number;
+  left: StickDriftResult;
+  right: StickDriftResult;
+}
+
 export interface Deadzones {
   leftStick: number;
   rightStick: number;

@@ -4,6 +4,8 @@ Application Windows (Tauri 2 + React/TypeScript + moteur Rust) pour détecter, t
 
 Projet indépendant, non affilié à Sony ni à Microsoft. Nom de travail provisoire.
 
+**Portée réelle du mode natif :** Windows réalise l'appairage Bluetooth et expose la manette aux jeux compatibles. PadBridge lit les rapports HID et affiche un aperçu des réglages, mais **ne modifie pas les entrées vues par les jeux en mode natif**. Les transformations de mapping et de zones mortes ne pourront affecter un jeu qu'après intégration et validation d'un backend virtuel adapté. Aucun pilote tiers ni pilote maison n'est installé par cette version.
+
 ## Démarrage sur Windows
 
 Prérequis : Node.js 20+, Rust (stable, MSVC), WebView2 (déjà présent sous Windows 11).
@@ -62,9 +64,15 @@ src-tauri/
 ## Ce qui reste à faire
 
 1. **POC A (obligatoire avant tout le reste)** : `report_parser.rs` suit les formats HID documentés publiquement, mais n'a pas été testé sur une vraie manette. Vérifiez DS4 et DualSense en USB et Bluetooth. En Bluetooth, la lecture d'un rapport de fonctionnalité au démarrage (`enumeration.rs`) bascule vers le rapport complet ; à confirmer. Les valeurs de batterie sont approximatives.
-2. **POC B / ADR** : choisir un backend de manette virtuelle signé, redistribuable et maintenu, puis l'implémenter dans un nouveau fichier et le retourner dans `selected_backend.rs`. `OutputState::to_xinput()` fournit déjà le rapport au format XINPUT_GAMEPAD.
+2. **POC B / ADR** : concevoir et valider un pilote virtuel maison si l'objectif est de maîtriser l'implémentation sans pilote tiers, puis l'intégrer à `selected_backend.rs`. `OutputState::to_xinput()` fournit une représentation des commandes ; cela ne crée pas un périphérique XInput reconnu par Windows. Un périphérique HID virtuel générique n'est pas automatiquement un périphérique Xbox/XInput. La validation en machine de test et la signature du pilote seront indispensables avant distribution.
 3. Tests T01 à T24 sur banc réel, trois jeux XInput de référence, revue sécurité et licences.
 
 ## Non vérifié ici
 
 Le code Windows (`enumeration.rs`, lecture HID, commandes `cmd`/`powershell`/`tasklist`) n'a pas pu être compilé ni exécuté dans l'environnement de développement (Linux). La couche Tauri compile (`cargo check`) et l'interface a été contrôlée dans un navigateur avec le moteur simulé. Si `cargo build` signale une erreur côté Windows, elle sera dans `devices/enumeration.rs` ou `diagnostics/health.rs`.
+
+## Recette sur Windows sans VM
+
+- Les builds Windows et tests Rust sont vérifiés automatiquement par `.github/workflows/windows-ci.yml` sur les pull requests ; les tests physiques restent manuels.
+- Le protocole de validation manuelle se trouve dans [`docs/VALIDATION_WINDOWS.md`](docs/VALIDATION_WINDOWS.md).
+- Ne jamais installer un pilote noyau expérimental sur le PC principal de développement, surtout quand il ne reste que peu d'espace disque libre.

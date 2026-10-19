@@ -71,6 +71,12 @@ src-tauri/
 
 Le code Windows (`enumeration.rs`, lecture HID, commandes `cmd`/`powershell`/`tasklist`) n'a pas pu être compilé ni exécuté dans l'environnement de développement (Linux). La couche Tauri compile (`cargo check`) et l'interface a été contrôlée dans un navigateur avec le moteur simulé. Si `cargo build` signale une erreur côté Windows, elle sera dans `devices/enumeration.rs` ou `diagnostics/health.rs`.
 
+## Diagnostic de dérive (drift) — sans pilote supplémentaire
+
+Dans **Test de la manette**, cliquez sur **Tester mes joysticks (5 s)**, posez la manette et ne touchez pas aux sticks. PadBridge collecte les axes HID bruts et fait analyser les mesures par le moteur Rust. Le statut peut être normal, dérive possible, mouvement détecté ou incertain. L'outil ne répare pas les joysticks, ne modifie pas les profils et ne constitue pas un diagnostic matériel définitif. Répétez toute mesure suspecte dans des conditions stables.
+
+La batterie est affichée avec le symbole **≈** : la DualShock 4 ne fournit pas une mesure précise à 1 % dans les rapports HID actuellement décodés. Les paliers calculés sont indicatifs.
+
 ## Recette sur Windows sans VM
 
 - Les builds Windows et tests Rust sont vérifiés automatiquement par `.github/workflows/windows-ci.yml` sur les pull requests ; les tests physiques restent manuels.

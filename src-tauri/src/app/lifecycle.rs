@@ -99,6 +99,7 @@ pub fn run() {
             commands::activate_mode,
             commands::stop_virtual_session,
             commands::run_diagnostics,
+            commands::analyze_stick_drift,
             commands::preview_diagnostics_export,
             commands::export_diagnostics,
             commands::get_settings,

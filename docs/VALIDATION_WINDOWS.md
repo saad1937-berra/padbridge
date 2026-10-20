@@ -54,12 +54,13 @@ Ce test est **strictement en lecture seule** et n'a aucun lien avec T14.
 - [ ] Aucun passage automatique en XInput, aucune vibration, aucune installation de pilote et aucun changement de profil.
 - [ ] Les contrôles PS, pavé tactile et micro sont exclus du parcours de base ; les relâchements et la précision analogique restent à tester séparément.
 
-**Résultat utilisateur : 24 / 24 (14 boutons, 8 directions, 2 gâchettes) affichés comme vérifiés sur la capture du 20/10/2026.** La capture démontre la réussite de la vérification ciblée, mais pas les transitions de relâchement, la précision analogique, ni le fonctionnement de la reconnexion. Les essais de démarrage à 0/24, d'arrêt manuel, de redémarrage et de changement multi-appareils n'ont pas été explicitement attestés.
+**Résultat utilisateur : 24 / 24 (14 boutons, 8 directions, 2 gâchettes) affichés comme vérifiés sur la capture du 20/10/2026.** La capture démontre la réussite de la vérification ciblée, mais pas les transitions de relâchement de toutes les touches, la précision analogique, ni le fonctionnement de la reconnexion. Le relâchement de **Croix** a depuis été confirmé séparément. Les essais de démarrage à 0/24, d'arrêt manuel, de redémarrage et de changement multi-appareils n'ont pas été explicitement attestés.
 
 **Critère de validation :** 24/24 commandes observées sur une vraie DualShock 4 en Bluetooth ou échecs documentés par contrôle. Un résultat incomplet ne démontre pas à lui seul une panne matérielle. Ne pas déclarer le POC A globalement validé avant les essais de déconnexion/reconnexion et les appareils non testés.
 
 ## POC A — HID réel
 - [ ] L'écran **Appareils** identifie le modèle et le transport Bluetooth.
+- [x] **Test ciblé Croix (20/10/2026)** : l'écran « Boutons actifs » affiche Croix pendant l'appui, puis « aucun » une fois la touche relâchée (confirmation utilisateur).
 - [ ] L'écran **Test manette** montre chaque bouton pressé puis relâché.
 - [ ] Sticks gauche/droit : axes X/Y atteignent des valeurs proches de -1/+1 et reviennent près de zéro.
 - [ ] Gâchettes L2/R2 : variation progressive de 0 à 1.

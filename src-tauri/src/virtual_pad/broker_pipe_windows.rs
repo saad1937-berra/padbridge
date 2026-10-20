@@ -23,13 +23,15 @@ use windows_sys::Win32::Storage::FileSystem::{
     ReadFile, WriteFile, FILE_FLAG_FIRST_PIPE_INSTANCE,
 };
 use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_ACCESS_DUPLEX,
+    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe,
     PIPE_READMODE_MESSAGE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE, PIPE_WAIT,
 };
 
 use super::broker_ipc::{self, REQUEST_LEN};
 
 pub const PIPE_NAME: &str = r"\\.\pipe\PadBridge.Broker.POC.v1";
+// Win32 CreateNamedPipeW open-mode flag, PIPE_ACCESS_DUPLEX.
+const PIPE_ACCESS_DUPLEX: u32 = 0x00000003;
 
 // A user's SID may come ONLY from future privileged provisioning.
 // No names, wildcards, SID aliases or SDDL escape sequences are accepted.

@@ -52,7 +52,7 @@ src-tauri/
 | PB-002/003 installation, réparation, désinstallation | NSIS par utilisateur ; pas de pilote installé par l'app |
 | PB-004 niveaux de prise en charge | Fait (écran Compatibilité) |
 | PB-005 à PB-010 détection, USB/BT, batterie, perte | Fait, **à valider sur matériel** (POC A) |
-| PB-011 à PB-013 tests touches/axes, calibration | Fait : aperçu en direct et parcours guidé de 24 commandes HID brutes (lecture seule, recette Windows à effectuer) |
+| PB-011 à PB-013 tests touches/axes, calibration | Fait : aperçu en direct et parcours guidé de 24 commandes HID brutes, **24/24 observées sur DS4 dans la recette utilisateur du 20/10/2026** ; relâchement et précision analogique à vérifier séparément |
 | PB-014/015 mapping simple, profils | Fait (dupliquer, renommer, réinitialiser, corruption → profil sûr) |
 | PB-016 mode natif | Fait |
 | PB-017/018 XInput + cycle de vie | Logique du moteur faite et testée avec un backend factice ; **aucun backend réel** |

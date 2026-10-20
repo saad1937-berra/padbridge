@@ -39,20 +39,22 @@ Consulter [`ACCESSIBILITE_PB024.md`](ACCESSIBILITE_PB024.md) pour les scénarios
 - [ ] Si la vibration fonctionne : répéter une fois à **30 % / 1,5 seconde** puis vérifier que la lecture des touches continue de fonctionner.
 - [ ] Le bouton doit être indisponible pour une DualSense ; aucune installation de pilote n'est autorisée.
 
-## POC A — Parcours guidé des commandes (nouveau, à valider)
+## POC A — Parcours guidé des commandes (24/24 validé sur matériel, 20 octobre 2026)
 
 Ce test est **strictement en lecture seule** et n'a aucun lien avec T14.
 
-- [ ] Lancer `npm run tauri dev`, connecter la DualShock 4 en Bluetooth, ouvrir **Test manette → Vérification guidée**.
+- [x] Lancer `npm run tauri dev`, connecter la DualShock 4 en Bluetooth, ouvrir **Test manette → Vérification guidée**. Retour utilisateur : capture du parcours sur la session DS4 Bluetooth.
 - [ ] Cliquer sur **Démarrer le parcours**. Vérifier que la progression débute à **0 / 24**, sans considérer les touches précédemment pressées.
-- [ ] Tester les boutons Croix, Rond, Carré, Triangle, directionnels haut/bas/gauche/droite, L1/R1, clic L3/R3, Share et Options.
-- [ ] Déplacer chaque joystick à gauche, à droite, en haut et en bas jusqu'à environ 70 % de sa course ; presser L2 et R2 au-delà de 70 %.
+- [x] Tester les boutons Croix, Rond, Carré, Triangle, directionnels haut/bas/gauche/droite, L1/R1, clic L3/R3, Share et Options. Capture : 14/14 vérifiés.
+- [x] Déplacer chaque joystick à gauche, à droite, en haut et en bas jusqu'à environ 70 % de sa course ; presser L2 et R2 au-delà de 70 %. Capture : 8 directions et 2 gâchettes vérifiées selon les seuils de PadBridge.
 - [ ] Vérifier que seuls les contrôles réellement observés passent à **Vérifiée**, et que l'indicateur affiche le nombre total correct.
 - [ ] Cliquer sur **Terminer le parcours** : les résultats partiels restent visibles, aucune commande n'est envoyée à la manette.
 - [ ] Cliquer sur **Recommencer** : la progression repart à zéro, puis vérifier un nouveau bouton.
 - [ ] Si plusieurs manettes sont connectées, changer de manette : le parcours doit recommencer à zéro pour éviter un mélange de mesures.
 - [ ] Aucun passage automatique en XInput, aucune vibration, aucune installation de pilote et aucun changement de profil.
 - [ ] Les contrôles PS, pavé tactile et micro sont exclus du parcours de base ; les relâchements et la précision analogique restent à tester séparément.
+
+**Résultat utilisateur : 24 / 24 (14 boutons, 8 directions, 2 gâchettes) affichés comme vérifiés sur la capture du 20/10/2026.** La capture démontre la réussite de la vérification ciblée, mais pas les transitions de relâchement, la précision analogique, ni le fonctionnement de la reconnexion. Les essais de démarrage à 0/24, d'arrêt manuel, de redémarrage et de changement multi-appareils n'ont pas été explicitement attestés.
 
 **Critère de validation :** 24/24 commandes observées sur une vraie DualShock 4 en Bluetooth ou échecs documentés par contrôle. Un résultat incomplet ne démontre pas à lui seul une panne matérielle. Ne pas déclarer le POC A globalement validé avant les essais de déconnexion/reconnexion et les appareils non testés.
 

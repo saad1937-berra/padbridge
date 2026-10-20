@@ -26,5 +26,9 @@ jobs:
         run: npm run build
       - name: Test Rust engine without desktop dependencies
         run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features
+      - name: Test dormant broker protocol and simulated sessions
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-poc
+      - name: Compile Windows Tauri with opt-in broker transport
+        run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop,broker-poc
       - name: Compile native Windows/Tauri integration
         run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop

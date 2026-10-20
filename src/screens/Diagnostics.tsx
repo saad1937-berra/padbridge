@@ -70,7 +70,7 @@ export function Diagnostics() {
       {preview !== null && (
         <section className="card flex flex-col gap-3" aria-label="Aperçu de l'export">
           <h2>Contenu qui sera exporté</h2>
-          <pre className="m-0 max-h-72 overflow-auto rounded-md p-3 text-xs" style={{ background: "var(--surface-2)" }}>{preview}</pre>
+          <pre tabIndex={0} aria-label="Aperçu textuel du rapport à exporter" className="m-0 max-h-72 overflow-auto rounded-md p-3 text-xs" style={{ background: "var(--surface-2)" }}>{preview}</pre>
           <p className="muted m-0 text-xs">
             Le rapport ne contient ni numéro de série, ni identifiants matériels, ni chemins personnels, ni contenu de jeu.
           </p>
@@ -108,7 +108,8 @@ export function Diagnostics() {
 
       <section className="card p-0" aria-label="Événements">
         <table className="data">
-          <thead><tr><th>Heure</th><th>Gravité</th><th>Code</th><th>Module</th><th>Message</th></tr></thead>
+          <caption className="sr-only">Événements de diagnostic récents</caption>
+          <thead><tr><th scope="col">Heure</th><th scope="col">Gravité</th><th scope="col">Code</th><th scope="col">Module</th><th scope="col">Message</th></tr></thead>
           <tbody>
             {report?.events.length ? [...report.events].reverse().map((e, i) => {
               const sev = severityInfo[e.severity];

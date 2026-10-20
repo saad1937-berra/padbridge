@@ -5,13 +5,14 @@
 use super::model::{device_id_from_path, ControllerDevice, ControllerModel, Transport, SONY_VENDOR_ID};
 use crate::diagnostics::events::Severity;
 use crate::engine::Engine;
+use crate::devices::rumble::{build_report, RumbleCommand, RumbleRegistry};
 use hidapi::{BusType, HidApi, HidDevice};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(1);
 /// Nouvelle tentative d'ouverture d'un appareil illisible : toutes les N interrogations.
@@ -37,10 +38,10 @@ enum Tracked {
     Unreadable { ticks: u32 },
 }
 
-pub fn spawn(engine: Arc<Engine>, stop: Arc<AtomicBool>) -> HidMonitor {
+pub fn spawn(engine: Arc<Engine>, stop: Arc<AtomicBool>, rumble: Arc<RumbleRegistry>) -> HidMonitor {
     let handle = thread::Builder::new()
         .name("padbridge-hid-monitor".into())
-        .spawn(move || monitor_loop(engine, stop))
+        .spawn(move || monitor_loop(engine, stop, rumble))
         .ok();
     HidMonitor { handle }
 }
@@ -65,7 +66,7 @@ fn transport_of(info: &hidapi::DeviceInfo) -> Transport {
     }
 }
 
-fn monitor_loop(engine: Arc<Engine>, stop: Arc<AtomicBool>) {
+fn monitor_loop(engine: Arc<Engine>, stop: Arc<AtomicBool>, rumble: Arc<RumbleRegistry>) {
     let mut api = match HidApi::new() {
         Ok(api) => api,
         Err(e) => {
@@ -134,6 +135,7 @@ fn monitor_loop(engine: Arc<Engine>, stop: Arc<AtomicBool>) {
                             dev,
                             reader_stop.clone(),
                             stop.clone(),
+                            rumble.clone(),
                         );
                         tracked.insert(id, Tracked::Reading { stop: reader_stop, handle });
                     }
@@ -174,6 +176,7 @@ fn spawn_reader(
     dev: HidDevice,
     stop: Arc<AtomicBool>,
     global_stop: Arc<AtomicBool>,
+    rumble: Arc<RumbleRegistry>,
 ) -> JoinHandle<()> {
     thread::Builder::new()
         .name("padbridge-hid-reader".into())
@@ -193,10 +196,57 @@ fn spawn_reader(
                 }
             }
 
+            // Le handle HID appartient à ce fil : lecture ET écriture ne se chevauchent pas.
+            let (tx, rx) = mpsc::sync_channel(2);
+            rumble.register(id.clone(), tx);
+            let mut rumble_deadline: Option<Instant> = None;
             let mut buf = [0u8; 128];
             let mut parse_errors: u64 = 0;
             while !stop.load(Ordering::Relaxed) && !global_stop.load(Ordering::Relaxed) {
-                match dev.read_timeout(&mut buf, 100) {
+                // Toute vibration est limitée dans le temps. Le propriétaire du handle
+                // envoie automatiquement un rapport neutre même si l'UI se ferme.
+                if rumble_deadline.is_some_and(|deadline| Instant::now() >= deadline) {
+                    if let Ok(output) = build_report(device.transport, 0, 0) {
+                        if let Err(e) = dev.write(&output) {
+                            engine.events().push(Severity::Warning, crate::error::codes::DEVICE_UNREADABLE,
+                                "rumble", &format!("arrêt automatique HID impossible : {e}"));
+                        }
+                    }
+                    rumble_deadline = None;
+                }
+                while let Ok(cmd) = rx.try_recv() {
+                    match cmd {
+                        RumbleCommand::Start { right, left, duration_ms, reply } => {
+                            if rumble_deadline.is_some() {
+                                let _ = reply.send(Err(crate::error::AppError::new(
+                                    crate::error::codes::BACKEND_SESSION, "une vibration est déjà en cours"
+                                )));
+                                continue;
+                            }
+                            let result = build_report(device.transport, right, left)
+                                .and_then(|output| dev.write(&output)
+                                    .map(|_| ())
+                                    .map_err(|e| crate::error::AppError::new(
+                                        crate::error::codes::DEVICE_UNREADABLE, format!("écriture HID : {e}")
+                                    )));
+                            if result.is_ok() {
+                                rumble_deadline = Some(Instant::now() + Duration::from_millis(u64::from(duration_ms)));
+                            }
+                            let _ = reply.send(result);
+                        }
+                        RumbleCommand::Stop { reply } => {
+                            let result = build_report(device.transport, 0, 0)
+                                .and_then(|output| dev.write(&output)
+                                    .map(|_| ())
+                                    .map_err(|e| crate::error::AppError::new(
+                                        crate::error::codes::DEVICE_UNREADABLE, format!("arrêt HID : {e}")
+                                    )));
+                            rumble_deadline = None;
+                            let _ = reply.send(result);
+                        }
+                    }
+                }
+                match dev.read_timeout(&mut buf, 25) {
                     Ok(0) => continue,
                     Ok(n) => {
                         if let Err(e) = engine.ingest_report(&id, &buf[..n]) {
@@ -213,6 +263,14 @@ fn spawn_reader(
                         }
                     }
                     Err(_) => break, // appareil retiré ou erreur fatale
+                }
+            }
+            // Arrêt explicite, autant que possible, à la perte de connexion
+            // ou à la fermeture de l'application.
+            rumble.unregister(&id);
+            if rumble_deadline.is_some() {
+                if let Ok(output) = build_report(device.transport, 0, 0) {
+                    let _ = dev.write(&output);
                 }
             }
             engine.device_lost(&id);

@@ -8,6 +8,7 @@ import type { ApiError, AppSettings, ControllerView, Profile, ValidationReport }
 import { DEFAULT_DEADZONES, DeadzoneEditor, ValidationMessages } from "../components/ProfileEditors";
 import { Gamepad } from "../components/Gamepad";
 import { DriftDiagnostic } from "../components/DriftDiagnostic";
+import { GuidedInputTest } from "../components/GuidedInputTest";
 import { RumbleTest } from "../components/RumbleTest";
 import { ErrorNotice, Page } from "../components/Ui";
 
@@ -147,6 +148,7 @@ export function TestScreen({
         </section>
       </div>
 
+      <GuidedInputTest key={current.device.deviceId} deviceId={current.device.deviceId} sample={sample} />
       <DriftDiagnostic deviceId={current.device.deviceId} sample={sample} />
       <RumbleTest device={current.device} connected={current.state.connectionState === "connected" || current.state.connectionState === "unstable"} />
 

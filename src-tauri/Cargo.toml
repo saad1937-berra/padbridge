@@ -30,7 +30,7 @@ custom-protocol = ["desktop", "tauri/custom-protocol"]
 broker-poc = ["dep:windows-sys"]
 # One-shot local named-pipe service preview (DENIES injection).
 # Explicit opt-in only; no installer, SCM registration or autostart.
-broker-service-poc = ["broker-poc", "windows-sys/Win32_System_Pipes", "windows-sys/Win32_Security_Authorization"]
+broker-service-poc = ["broker-poc", "windows-sys/Win32_System_Pipes", "windows-sys/Win32_Security_Authorization", "windows-sys/Win32_System_Threading"]
 
 [[bin]]
 name = "padbridge-broker-preview"

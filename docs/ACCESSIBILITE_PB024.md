@@ -1,6 +1,6 @@
 # PB-024 — Accessibilité de l'interface PadBridge
 
-Statut : **premiers tests clavier, thèmes standards et contraste élevé Windows validés par l'utilisateur sur Windows 11 (20/10/2026) ; vérifications de zoom, audit complet et éventuellement NVDA restant à effectuer**. Cet ensemble de modifications ne constitue pas une certification WCAG 2.2 AA.
+Statut : **recette fonctionnelle ciblée validée par l'utilisateur sur Windows 11 (20/10/2026) : navigation clavier, focus, annonces à la demande, thèmes, contraste élevé, Narrateur et mise à l'échelle 150 %**. Les autres parcours détaillés, NVDA et l'audit WCAG complet restent à réaliser. Cet ensemble de modifications ne constitue pas une certification WCAG 2.2 AA.
 
 ## Principes
 
@@ -29,11 +29,11 @@ Réaliser ces étapes sans toucher aux pilotes Bluetooth et **sans exécuter de 
 - [x] **A09a — Thèmes standards.** Les affichages Clair, Sombre et « Suivre le système » sont jugés corrects par l'utilisateur sur Windows 11 (20/10/2026).
 - [x] **A09b — Contraste élevé.** L'utilisateur confirme que PadBridge demeure lisible sous un thème de contraste Windows (20/10/2026). Contrôle visuel manuel, sans mesure automatisée de contrastes WCAG.
 - [x] **A09c — Narrateur Windows.** L'utilisateur confirme que Narrateur annonce les titres des pages et les noms des boutons lors de la navigation (20/10/2026). Un audit exhaustif reste à faire.
-- [ ] **A10 — Zoom.** Avec l'agrandissement Windows ou le zoom de WebView si disponible, vérifier l'absence de perte d'actions essentielles. La navigation doit pouvoir s'afficher horizontalement sur une largeur réduite.
+- [x] **A10 — Zoom.** L'utilisateur confirme que PadBridge reste accessible avec Windows réglé temporairement sur **150 %**, même avec une fenêtre réduite (20/10/2026). Vérification visuelle manuelle ; autres facteurs de zoom non mesurés.
 - [ ] **A11 — T14.** Confirmer que les commandes de vibration et d'arrêt sont désactivées, mais que l'inspection « sans vibration » est accessible.
 - [ ] **A12 — Quitter.** Quitter PadBridge par la zone de notification, puis confirmer que la manette répond dans `joy.cpl`.
 
-**Retour de recette — 20 octobre 2026 :** l'utilisateur a confirmé « ça marche » après la consigne de vérifier le saut au contenu, le focus lors de la navigation et le bouton d'annonce des touches. Le même jour, il a confirmé que les trois thèmes standards s'affichent correctement et que l'interface reste lisible en contraste élevé Windows. Les autres scénarios ci-dessus n'ont pas été vérifiés explicitement ; le fonctionnement de Narrateur sur les titres et les boutons a été confirmé, mais les autres annonces n'ont pas été entièrement auditées.
+**Retour de recette — 20 octobre 2026 :** l'utilisateur a confirmé « ça marche » après la consigne de vérifier le saut au contenu, le focus lors de la navigation et le bouton d'annonce des touches. Le même jour, il a confirmé que les trois thèmes standards s'affichent correctement et que l'interface reste lisible en contraste élevé Windows. Le même jour, l'utilisateur a également confirmé que PadBridge reste accessible avec Windows réglé sur 150 % de mise à l'échelle. Les autres scénarios ci-dessus n'ont pas été vérifiés explicitement ; le fonctionnement de Narrateur sur les titres et les boutons a été confirmé, mais les autres annonces n'ont pas été entièrement auditées.
 
 ## Points non démontrés par les tests automatiques
 
@@ -45,4 +45,4 @@ Réaliser ces étapes sans toucher aux pilotes Bluetooth et **sans exécuter de 
 
 ## Critères de clôture
 
-PB-024 ne sera marqué **validé sur matériel** qu'après retour explicite sur la navigation au clavier, le focus visible, la lecture des contenus importants, les erreurs et le contraste. Aucune affirmation de conformité WCAG complète sans audit dédié.
+La **recette fonctionnelle ciblée sur matériel** est validée (navigation, focus, annonces à la demande, thèmes, contraste, Narrateur, 150 %). Les scénarios non cochés (notamment erreurs, export, contrôles de formulaire) demeurent ouverts. Aucune affirmation de conformité WCAG complète sans audit dédié.

@@ -60,7 +60,7 @@ src-tauri/
 | PB-022/023 journal, erreurs | Fait (codes PB-Exxx, export expurgé avec consentement) |
 | PB-024 accessibilité | Clavier, statuts texte + symbole, thème clair/sombre ; à auditer |
 | PB-021 vibration Bluetooth (T14) | Suspendu : aucun retour physique malgré WriteFile ; bouton d'impulsion désactivé, inspection HID en lecture seule conservée |
-| PB-025 barre système Windows | Implémentée : Afficher/Masquer/Quitter, clic gauche pour afficher ; recette Windows à effectuer |
+| PB-025 barre système Windows | Implémentée et testée sur Windows 11 par l'utilisateur (20/10/2026) : icône, masquer/afficher/quitter et retour à `joy.cpl` ; points secondaires encore à auditer |
 
 ## Ce qui reste à faire
 

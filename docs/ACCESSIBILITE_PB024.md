@@ -1,6 +1,6 @@
 # PB-024 — Accessibilité de l'interface PadBridge
 
-Statut : **implémentation technique prête, recette Windows avec clavier et lecteur d'écran à effectuer**. Cet ensemble de modifications ne constitue pas une certification WCAG 2.2 AA.
+Statut : **premiers tests clavier validés par l'utilisateur sur Windows 11 (20/10/2026) ; contrôle Narrateur/NVDA, contraste, zoom et audit restant à effectuer**. Cet ensemble de modifications ne constitue pas une certification WCAG 2.2 AA.
 
 ## Principes
 
@@ -17,11 +17,12 @@ Statut : **implémentation technique prête, recette Windows avec clavier et lec
 
 Réaliser ces étapes sans toucher aux pilotes Bluetooth et **sans exécuter de test T14** :
 
-- [ ] **A01 — Lien d'évitement.** Ouvrir PadBridge et appuyer sur `Tab` une fois : le lien « Aller au contenu principal » doit devenir visible. Valider par `Entrée`, puis vérifier le focus sur le contenu.
-- [ ] **A02 — Navigation.** Avec `Tab`, `Maj+Tab` et `Entrée`, ouvrir les sept écrans ; chaque changement doit donner le focus au titre de l'écran.
+- [x] **A01 — Lien d'évitement.** Ouvrir PadBridge et appuyer sur `Tab` une fois : le lien « Aller au contenu principal » doit devenir visible. Valider par `Entrée`, puis vérifier le focus sur le contenu.
+- [x] **A02 — Navigation.** Avec `Tab`, `Maj+Tab` et `Entrée`, ouvrir les sept écrans ; chaque changement doit donner le focus au titre de l'écran.
 - [ ] **A03 — Focus visible.** Un encadrement bien visible suit chaque bouton, lien, sélection, curseur et case à cocher.
 - [ ] **A04 — Réglages.** Naviguer entre les champs de Paramètres et Profils au clavier. Modifier une zone morte avec les touches fléchées, puis vérifier la valeur affichée. Ne pas enregistrer de changement involontaire.
 - [ ] **A05 — Appareils.** Dans la liste des appareils, chaque bouton « Détails » doit avoir un nom distinct et ouvrir le bon appareil.
+- [x] **A06a — Lecture à la demande.** Le bouton « Annoncer les boutons actifs » est utilisable et affiche l'état à la demande (retour utilisateur, 20/10/2026).
 - [ ] **A06 — Tests manette.** Le schéma et le texte « Boutons actifs » reflètent les pressions. Un lecteur d'écran ne doit pas annoncer chaque échantillon HID ; le bouton « Annoncer les boutons actifs » fournit un état à la demande.
 - [ ] **A07 — Erreurs.** Provoquer une erreur bénigne de formulaire (nom de profil vide, sans sauvegarde) puis vérifier que le message est lisible en texte et non seulement en couleur.
 - [ ] **A08 — Export.** Dans Diagnostics, ouvrir l'aperçu, parcourir le texte au clavier, puis confirmer que l'export n'est possible qu'après consentement. Annuler sans exporter.
@@ -29,6 +30,8 @@ Réaliser ces étapes sans toucher aux pilotes Bluetooth et **sans exécuter de 
 - [ ] **A10 — Zoom.** Avec l'agrandissement Windows ou le zoom de WebView si disponible, vérifier l'absence de perte d'actions essentielles. La navigation doit pouvoir s'afficher horizontalement sur une largeur réduite.
 - [ ] **A11 — T14.** Confirmer que les commandes de vibration et d'arrêt sont désactivées, mais que l'inspection « sans vibration » est accessible.
 - [ ] **A12 — Quitter.** Quitter PadBridge par la zone de notification, puis confirmer que la manette répond dans `joy.cpl`.
+
+**Retour de recette — 20 octobre 2026 :** l'utilisateur a confirmé « ça marche » après la consigne de vérifier le saut au contenu, le focus lors de la navigation et le bouton d'annonce des touches. Les autres scénarios ci-dessus n'ont pas été vérifiés explicitement ; l'efficacité des annonces avec un lecteur d'écran n'est pas encore établie.
 
 ## Points non démontrés par les tests automatiques
 

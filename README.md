@@ -59,7 +59,8 @@ src-tauri/
 | PB-019/020 double entrée, Steam | Diagnostic et guide ; aucun masquage ni injection |
 | PB-022/023 journal, erreurs | Fait (codes PB-Exxx, export expurgé avec consentement) |
 | PB-024 accessibilité | Clavier, statuts texte + symbole, thème clair/sombre ; à auditer |
-| PB-021 vibration, PB-025 barre système | Non faits (P1) |
+| PB-021 vibration Bluetooth (T14) | En attente : Windows accepte l'écriture mais aucune vibration physique constatée ; ne pas multiplier les essais |
+| PB-025 barre système Windows | Implémentée : Afficher/Masquer/Quitter, clic gauche pour afficher ; recette Windows à effectuer |
 
 ## Ce qui reste à faire
 

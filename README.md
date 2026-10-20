@@ -58,7 +58,7 @@ src-tauri/
 | PB-017/018 XInput + cycle de vie | Logique du moteur faite et testée avec un backend factice ; **aucun backend réel** |
 | PB-019/020 double entrée, Steam | Diagnostic et guide ; aucun masquage ni injection |
 | PB-022/023 journal, erreurs | Fait (codes PB-Exxx, export expurgé avec consentement) |
-| PB-024 accessibilité | Améliorée : saut au contenu, focus après navigation, annonces HID à la demande, tableaux nommés et contrastes renforcés ; recette clavier/lecteur d'écran et audit WCAG à effectuer |
+| PB-024 accessibilité | Recette ciblée validée sur Windows 11 (20/10/2026) : navigation clavier/focus, annonce à la demande, thèmes, contraste élevé, Narrateur et mise à l'échelle 150 %. Autres parcours et audit WCAG complet en attente |
 | PB-021 vibration Bluetooth (T14) | Suspendu : aucun retour physique malgré WriteFile ; bouton d'impulsion désactivé, inspection HID en lecture seule conservée |
 | PB-025 barre système Windows | Implémentée et testée sur Windows 11 par l'utilisateur (20/10/2026) : icône, masquer/afficher/quitter et retour à `joy.cpl` ; points secondaires encore à auditer |
 

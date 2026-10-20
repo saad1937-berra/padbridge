@@ -33,7 +33,8 @@ pub const DEVICE_INTERFACE: GUID = GUID {
     data4: [0x9c, 0x10, 0x1a, 0x5d, 0x42, 0x2b, 0xcc, 0x21],
 };
 
-struct DeviceSet(HANDLE);
+// SetupAPI HDEVINFO is isize in windows-sys 0.60; it is not a HANDLE.
+struct DeviceSet(isize);
 impl Drop for DeviceSet {
     fn drop(&mut self) {
         // SAFETY: SetupDiGetClassDevsW returned this valid HDEVINFO.
@@ -121,7 +122,7 @@ fn find_unique_padbridge_interface() -> io::Result<Vec<u16>> {
             DIGCF_PRESENT | DIGCF_DEVICEINTERFACE,
         )
     };
-    if raw == INVALID_HANDLE_VALUE {
+    if raw == -1isize {
         return Err(io::Error::last_os_error());
     }
     let device_set = DeviceSet(raw);

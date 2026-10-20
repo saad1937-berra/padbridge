@@ -8,7 +8,6 @@ import type { ApiError, AppSettings, ControllerView, Profile, ValidationReport }
 import { DEFAULT_DEADZONES, DeadzoneEditor, ValidationMessages } from "../components/ProfileEditors";
 import { Gamepad } from "../components/Gamepad";
 import { DriftDiagnostic } from "../components/DriftDiagnostic";
-import { DriftDiagnostic } from "../components/DriftDiagnostic";
 import { ErrorNotice, Page } from "../components/Ui";
 
 const pct = (v: number) => `${Math.round(Math.max(0, Math.min(1, v)) * 100)}%`;
@@ -145,8 +144,6 @@ export function TestScreen({
           </p>
         </section>
       </div>
-
-      <DriftDiagnostic deviceId={deviceId!} sample={sample} />
 
       <DriftDiagnostic deviceId={current.device.deviceId} sample={sample} />
 

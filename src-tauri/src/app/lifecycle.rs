@@ -57,6 +57,10 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     ui_events::spawn(app.handle().clone(), engine.clone(), test_sub.clone(), stop.clone());
 
+    // Installer l'icône après initialisation du moteur. Aucun masquage automatique.
+    #[cfg(windows)]
+    super::tray::install(app)?;
+
     app.manage(AppState { engine, test_sub, rumble });
     app.manage(Runtime {
         stop,

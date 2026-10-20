@@ -6,3 +6,7 @@ pub mod commands;
 pub mod lifecycle;
 pub mod permissions;
 pub mod ui_events;
+
+// Windows uniquement : menus natifs, sans nouvelle permission IPC côté web.
+#[cfg(windows)]
+pub mod tray;

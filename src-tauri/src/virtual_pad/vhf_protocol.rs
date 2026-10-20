@@ -10,6 +10,32 @@ use crate::devices::model::Bit;
 pub const REPORT_ID: u8 = 1;
 pub const REPORT_LEN: usize = 10;
 pub const HAT_NEUTRAL: u8 = 8;
+/// CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_WRITE_DATA)
+/// dans PadBridgeVhf.h. Constante pure : n'ouvre ni n'ecrit de handle Windows.
+pub const IOCTL_SUBMIT: u32 = 0x0022_A000;
+pub const WATCHDOG_TIMEOUT_MS: u32 = 800;
+pub const WATCHDOG_INTERVAL_MS: u32 = 200;
+
+/// Verification en espace utilisateur pour le futur broker (le noyau valide
+/// les memes champs, meme si le broker est compromis).
+pub fn validate_report(bytes: &[u8]) -> Result<(), &'static str> {
+    if bytes.len() != REPORT_LEN {
+        return Err("invalid report length");
+    }
+    if bytes[0] != REPORT_ID {
+        return Err("invalid report id");
+    }
+    if u16::from_le_bytes([bytes[1], bytes[2]]) & !0x07ff != 0 {
+        return Err("reserved button bits");
+    }
+    if bytes[3] > HAT_NEUTRAL {
+        return Err("invalid hat value");
+    }
+    if bytes[4..8].contains(&0x80) {
+        return Err("invalid signed axis -128");
+    }
+    Ok(())
+}
 
 /// Ordre des bits dans PadBridgeVhf.h, distinct du masque XINPUT_GAMEPAD.
 /// Les quatre directions sont representees par un hat switch.
@@ -146,6 +172,31 @@ mod tests {
         assert_eq!(data[6] as i8, -64);
         assert_eq!(data[7] as i8, 127);
         assert_eq!((data[8], data[9]), (255, 0));
+    }
+
+    #[test]
+    fn ioctl_and_watchdog_match_kernel_contract() {
+        assert_eq!(IOCTL_SUBMIT, (0x22u32 << 16) | (2 << 14) | (0x800 << 2));
+        assert_eq!((WATCHDOG_INTERVAL_MS, WATCHDOG_TIMEOUT_MS), (200, 800));
+    }
+
+    #[test]
+    fn encoded_report_is_valid_and_bad_reports_are_rejected() {
+        let valid = encode(&OutputState::neutral());
+        assert_eq!(validate_report(&valid), Ok(()));
+        assert!(validate_report(&valid[..9]).is_err());
+        let mut wrong_id = valid;
+        wrong_id[0] = 2;
+        assert!(validate_report(&wrong_id).is_err());
+        let mut reserved_bit = valid;
+        reserved_bit[2] = 0x80;
+        assert!(validate_report(&reserved_bit).is_err());
+        let mut invalid_hat = valid;
+        invalid_hat[3] = 9;
+        assert!(validate_report(&invalid_hat).is_err());
+        let mut invalid_axis = valid;
+        invalid_axis[4] = 0x80;
+        assert!(validate_report(&invalid_axis).is_err());
     }
 
     #[test]

@@ -92,18 +92,18 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
           <label className="flex flex-col gap-1">
             <span className="flex justify-between"><span>Intensité du test</span><strong>{intensity} %</strong></span>
             <input type="range" min={10} max={60} step={5} value={intensity}
-              onChange={(e) => setIntensity(Number(e.target.value))} disabled={!enabled || busy} />
+              onChange={(e) => setIntensity(Number(e.target.value))} disabled={!enabled || busy || T14_PAUSED} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="flex justify-between"><span>Durée demandée</span><strong>{(duration / 1000).toLocaleString("fr-FR")} seconde(s)</strong></span>
             <input type="range" min={500} max={2000} step={250} value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))} disabled={!enabled || busy} />
+              onChange={(e) => setDuration(Number(e.target.value))} disabled={!enabled || busy || T14_PAUSED} />
           </label>
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-primary" disabled={!enabled || busy || T14_PAUSED} onClick={() => void run()}>
               {T14_PAUSED ? "Test suspendu (T14)" : busy ? "Impulsion en cours…" : "Tester la vibration"}
             </button>
-            <button className="btn" disabled={!enabled} onClick={() => void stop()}>
+            <button className="btn" disabled={!enabled || T14_PAUSED} onClick={() => void stop()}>
               Arrêter
             </button>
           </div>

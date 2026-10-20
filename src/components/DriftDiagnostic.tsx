@@ -125,7 +125,10 @@ export function DriftDiagnostic({ deviceId, sample }: {
           <button className="btn" onClick={cancel}>Annuler</button>
         )}
         {phase === "recording" && (
-          <span role="status">Mesure en cours… {remaining} s · {count} échantillons</span>
+          <>
+            <span>Mesure en cours… {remaining} s · {count} échantillons</span>
+            <span className="sr-only" role="status">Mesure en cours pour cinq secondes. Ne touchez pas aux joysticks.</span>
+          </>
         )}
         {phase === "analyzing" && <span role="status">Analyse Rust en cours…</span>}
       </div>

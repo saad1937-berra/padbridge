@@ -34,10 +34,16 @@ Octets : `[id=1, buttons_lo, buttons_hi, hat, lx, ly, rx, ry, lt, rt]`.
 - **Hat** : 0=haut,1=haut-droite,2=droite,3=bas-droite,4=bas,
   5=bas-gauche,6=gauche,7=haut-gauche,8=neutre.
 - **Axes** : LX/LY/RX/RY signes, -127 a +127. Gachettes : 0 a 255.
-- **IOCTL** : METHOD_BUFFERED, FILE_WRITE_DATA, longueur exactement 10.
-  La fermeture du handle envoie un rapport neutre ; cette securite partielle
-  ne remplace pas un watchdog et un controle exclusif de la pile PnP.
+- **IOCTL** : `0x0022A000` (METHOD_BUFFERED, FILE_WRITE_DATA), longueur exactement 10.
+  Rust et C utilisent les memes champs et le code Rust rejette aussi les rapports invalides.
   Le pilote rejette l'ID invalide, les bits reserves, hat > 8 et axes -128.
+- **Watchdog experimental** : le pilote surveille les commandes non neutres
+  toutes les **200 ms** et tente un rapport neutre apres **800 ms** sans
+  nouveau rapport. Le timer est lie aux transitions de puissance `D0Entry/D0Exit`.
+- **Fermeture de handle** : tentative de rapport neutre ; appels VHF, timer,
+  file IOCTL et transitions D0 sont proteges par un `WDFWAITLOCK`.
+  Ces comportements ne sont **pas valides en execution dans la VM** ; les
+  transitions et la concurrence doivent faire l'objet de tests noyau.
 - Aucun identifiant VID/PID de Sony, Microsoft ou d'un tiers n'est forge.
 - Aucune commande de sortie HID et aucune commande de vibration n'existe
   dans ce prototype.
@@ -69,19 +75,21 @@ avec snapshot et outil de debogage noyau** :
    .\\build-wdk.ps1 -Configuration Debug
    ```
    La commande **compile uniquement** et ne cree ni package INF signe, ni
-   machine virtuelle, ni pilote actif. Le projet C n'a **pas encore** ete
-   compile avec WDK sur GitHub Actions ; les tests noyau restent a faire. Si une erreur survient, transmettre
-   les **premieres erreurs** MSBuild (pas besoin de modifier les parametres
-   de securite de Windows).
+   machine virtuelle, ni pilote actif. Le projet C a ete compile sous WDK
+   avec GitHub Actions. Les tests en execution du noyau restent a faire.
+   Si une erreur survient localement, transmettre les **premieres erreurs**
+   MSBuild (pas besoin de modifier les parametres de securite de Windows).
 3. Preparer ensuite, apres revue, un package INF pour un appareil de test
    **root-enumerated**, avec `vhf` en `LowerFilters`, et un mecanisme
    de signature adapte a la VM. Etudier la compatibilite de ce montage
    avec le modele PnP et de puissance.
-4. La fermeture du handle client declenche deja une tentative de remise
-   a l'etat neutre ; cette logique reste **non verifiee sous WDK**.
-   Ajouter imperativement un **watchdog sur absence de nouvelles trames**,
-   gerer les transitions D0, les collisions avec la suppression PnP et la
-   concurrence, avant tout essai d'injection d'un rapport non neutre.
+4. La fermeture du handle client, un timer d'inactivite de 800 ms et les
+   transitions D0 declenchent une **tentative** d'envoi de rapport neutre.
+   Ces protections sont codees et soumises au build WDK, **mais non testees
+   dans un noyau Windows**. Il reste a verifier les collisions PnP,
+   l'expiration et la reprise du timer, les crashes du futur broker et
+   les courses entre nettoyage WDF, callbacks et destruction VHF, avant
+   toute installation meme dans une VM.
 5. Ecrire un **broker local restreint** qui traduira les `OutputState`
    du moteur en rapports VHF. L'interface noyau est limitee a SYSTEM /
    administrateurs : **ne jamais elever directement la fenetre Tauri**,
@@ -96,7 +104,7 @@ avec snapshot et outil de debogage noyau** :
 
 ## Portee du build WDK
 
-Le build a genere `PadBridgeVhf.sys` sur un runner GitHub Windows 2022 (19 456 octets, SHA-256 : `051E73108816D69A1B1F6D0DB9AD765A68B5F0CCA3E9C922D18697CB137C22C6`). En environnement WDK local, il generera ce fichier **uniquement si le code passe la compilation**. Le projet definit
+Le build initial a genere `PadBridgeVhf.sys` sur un runner GitHub Windows 2022 (19 456 octets, SHA-256 : `051E73108816D69A1B1F6D0DB9AD765A68B5F0CCA3E9C922D18697CB137C22C6`). Ces informations correspondent **a l'ancien binaire, avant l'ajout du watchdog** ; les builds plus recents produisent d'autres empreintes. En environnement WDK local, il generera ce fichier **uniquement si le code passe la compilation**. Le projet definit
 explicitement `SignMode=Off` ; le binaire qui en resulte, s'il existe,
 sera **non signe et impropre au chargement tel quel**. Aucune installation
 automatique n'existe. L'absence d'INF est volontaire tant que le watchdog,
@@ -104,6 +112,28 @@ la gestion PnP et le broker privilegie n'ont pas ete audites. Compiler
 n'implique **ni execution ni chargement en memoire noyau**.
 
 Le workflow separe [`.github/workflows/driver-wdk-ci.yml`](../../.github/workflows/driver-wdk-ci.yml) utilise le WDK 26100 preinstalle sur `windows-2022` pour compiler le code C, verifier l'existence du `.sys` non signe et publier un artefact temporaire (24 h). Il n'installe ni n'execute le pilote. Une compilation reussie **ne valide pas le comportement en noyau**.
+
+## Contrat et frontiere de securite du futur broker Rust
+
+Le code Rust `vhf_protocol.rs` expose un paquet fixe de 10 octets,
+`IOCTL_SUBMIT = 0x0022A000`, `validate_report` et les constantes du
+watchdog (`200 ms` / `800 ms`). Il **ne fait aucun appel DeviceIoControl**.
+
+Architecture visee, **non encore implemente** :
+
+1. **PadBridge utilisateur non eleve** produit un `OutputState` et
+   demande une sortie virtuelle via un canal local authentifie.
+2. **Broker Windows privilegie minimal** et distinct ouvre exclusivement
+   l'interface du pilote par son GUID et soumet les paquets valides.
+3. Le broker limite debit/nombre de sessions et emet des rapports neutres
+   sur arret, expiration, suspension et deconnexion ; la fermeture de son
+   handle et le watchdog du noyau sont des protections de secours.
+4. La securite d'IPC, l'authentification du demandeur, l'ACL du service,
+   l'installation, la signature, la veille/reprise et le retrait du
+   peripherique restent a concevoir et a tester **dans Hyper-V**.
+
+`selected_backend.rs` reste sur `NullBackend`. Ce travail ne rend ni
+les jeux XInput compatibles ni la sortie virtuelle utilisable aujourd'hui.
 
 ## Validation possible aujourd'hui, sans pilote
 

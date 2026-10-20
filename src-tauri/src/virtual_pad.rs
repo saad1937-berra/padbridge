@@ -9,6 +9,8 @@ pub mod selected_backend;
 pub mod vhf_protocol;
 // Coeur de broker testable, inactif tant qu'aucun service privilegie n'existe.
 pub mod vhf_broker;
+#[cfg(all(windows, feature = "broker-poc"))]
+pub mod vhf_broker_windows;
 
 /// Backend de test en mémoire : permet de vérifier les invariants (PB-010, PB-018).
 #[cfg(test)]

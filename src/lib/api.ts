@@ -3,7 +3,7 @@
 
 import type {
   ActivateResult, ApiError, AppSettings, ControllerView, DiagnosticsReport, InputSample,
-  OutputMode, Profile, SaveOutcome, ValidationReport, DriftReport, DriftSample,
+  OutputMode, Profile, SaveOutcome, ValidationReport, DriftReport, DriftSample, HidOutputInfo,
 } from "./types";
 import { mockApi, mockOnControllersChanged, mockOnInputSample, mockPickExportPath } from "./mock";
 

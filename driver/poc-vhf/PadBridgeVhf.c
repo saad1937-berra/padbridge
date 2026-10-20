@@ -75,6 +75,7 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(PB_DEVICE_CONTEXT, PbGetContext);
 EVT_WDF_DRIVER_DEVICE_ADD PbEvtDeviceAdd;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP PbEvtDeviceCleanup;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL PbEvtIoDeviceControl;
+EVT_WDF_FILE_CLEANUP PbEvtFileCleanup;
 
 _Use_decl_annotations_
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -94,6 +95,24 @@ VOID PbEvtDeviceCleanup(WDFOBJECT Object)
         VhfDelete(context->VhfHandle, TRUE);
         context->VhfHandle = NULL;
     }
+}
+
+// Si le client unique ferme son handle (y compris apres un crash), retirer
+// les commandes maintenues. Un watchdog temporel est encore requis avant VM.
+_Use_decl_annotations_
+VOID PbEvtFileCleanup(WDFFILEOBJECT FileObject)
+{
+    PPB_DEVICE_CONTEXT context = PbGetContext(WdfFileObjectGetDevice(FileObject));
+    PB_VHF_REPORT neutral = { 0 };
+    HID_XFER_PACKET packet = { 0 };
+
+    if (context->VhfHandle == NULL) return;
+    neutral.ReportId = PB_VHF_REPORT_ID;
+    neutral.Hat = PB_VHF_HAT_NEUTRAL;
+    packet.reportId = PB_VHF_REPORT_ID;
+    packet.reportBuffer = (PUCHAR)&neutral;
+    packet.reportBufferLen = (ULONG)sizeof(neutral);
+    (VOID)VhfReadReportSubmit(context->VhfHandle, &packet);
 }
 
 _Use_decl_annotations_
@@ -157,6 +176,7 @@ NTSTATUS PbEvtDeviceAdd(WDFDRIVER Driver, PWDFDEVICE_INIT DeviceInit)
     WDFDEVICE device;
     WDF_OBJECT_ATTRIBUTES attributes;
     WDF_IO_QUEUE_CONFIG queueConfig;
+    WDF_FILEOBJECT_CONFIG fileConfig;
     VHF_CONFIG vhfConfig;
     PPB_DEVICE_CONTEXT context;
     UNICODE_STRING name = RTL_CONSTANT_STRING(L"\\Device\\PadBridgeVhfPoc");
@@ -170,6 +190,13 @@ NTSTATUS PbEvtDeviceAdd(WDFDRIVER Driver, PWDFDEVICE_INIT DeviceInit)
 
     status = WdfDeviceInitAssignSDDLString(DeviceInit, &SDDL_DEVOBJ_SYS_ALL_ADM_ALL);
     if (!NT_SUCCESS(status)) return status;
+
+    // Un seul broker pilote l'etat virtuel. L'INF devra aussi rendre
+    // le PDO exclusif pour garantir cela a l'echelle de la pile.
+    WdfDeviceInitSetExclusive(DeviceInit, TRUE);
+    WDF_FILEOBJECT_CONFIG_INIT(
+        &fileConfig, WDF_NO_EVENT_CALLBACK, WDF_NO_EVENT_CALLBACK, PbEvtFileCleanup);
+    WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig, WDF_NO_OBJECT_ATTRIBUTES);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, PB_DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = PbEvtDeviceCleanup;

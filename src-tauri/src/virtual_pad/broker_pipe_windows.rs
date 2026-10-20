@@ -28,6 +28,7 @@ use windows_sys::Win32::System::Pipes::{
 };
 
 use super::broker_ipc::{self, REQUEST_LEN};
+use super::broker_auth_windows::verify_last_sender;
 
 pub const PIPE_NAME: &str = r"\\.\pipe\PadBridge.Broker.POC.v1";
 // Win32 CreateNamedPipeW open-mode flag, PIPE_ACCESS_DUPLEX.
@@ -63,6 +64,7 @@ impl Drop for Descriptor {
 
 pub struct PreviewPipe {
     handle: HANDLE,
+    provisioned_user_sid: String,
 }
 
 impl PreviewPipe {
@@ -115,7 +117,7 @@ impl PreviewPipe {
         if handle == INVALID_HANDLE_VALUE {
             return Err(io::Error::last_os_error());
         }
-        Ok(Self { handle })
+        Ok(Self { handle, provisioned_user_sid: provisioned_user_sid.to_owned() })
     }
 
     /// Handle precisely ONE bounded client message, then disconnect.
@@ -148,7 +150,13 @@ impl PreviewPipe {
             return Err(io::Error::last_os_error());
         }
 
-        let (status, _close) = broker_ipc::handle_dry_run(&request[..bytes_read as usize]);
+        // Never authorize solely based on the pipe DACL or a self-reported frame.
+        // Identity is checked AFTER reading the last client message.
+        let status = if matches!(verify_last_sender(self.handle, &self.provisioned_user_sid), Ok(true)) {
+            broker_ipc::handle_dry_run(&request[..bytes_read as usize]).0
+        } else {
+            broker_ipc::Status::Unauthorized
+        };
         let response = broker_ipc::response(status);
         let mut bytes_written = 0u32;
         // SAFETY: response remains alive throughout this synchronous write.

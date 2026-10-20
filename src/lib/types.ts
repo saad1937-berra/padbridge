@@ -52,6 +52,15 @@ export interface ControllerDevice {
   lastSeenMs: number;
 }
 
+export interface HidOutputInfo {
+  model: string;
+  transport: string;
+  requestedReportId: string;
+  requestedLength: number;
+  windowsOutputReportByteLength: number | null;
+  windowsCapsError: string | null;
+}
+
 export interface Battery {
   percent: number | null;
   charging: boolean;

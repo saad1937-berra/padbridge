@@ -227,20 +227,39 @@ fn spawn_reader(
             let mut parse_errors: u64 = 0;
             while !stop.load(Ordering::Relaxed) && !global_stop.load(Ordering::Relaxed) {
                 // Une seule voie d'écriture par périphérique : le lecteur HID.
-                // En Bluetooth sur Windows, SetOutputReport privilégie la voie
-                // de contrôle avec acquittement plutôt que WriteFile/interrupt.
+                // En Bluetooth sous Windows, on utilise WriteFile. Certains
+                // adaptateurs Bluetooth peuvent accepter sans transmettre : test
+                // physique requis même si la commande HID retourne Ok.
                 let send_motors = |right: u8, left: u8| -> crate::error::AppResult<()> {
                     let packet = build_report(device.transport, right, left)?;
-                    let result = if device.transport == Transport::Bluetooth {
+                    if device.transport == Transport::Bluetooth {
+                        // HidD_SetOutputReport échoue avec ERROR_INVALID_PARAMETER (87)
+                        // sur cette DS4 sous Windows. Utiliser le chemin WriteFile,
+                        // recommandé pour les rapports HID de sortie.
+                        // Une écriture acceptée ne garantit PAS une vibration physique.
                         let padded = pad_windows_bt_output(packet, windows_bt_output_cap)?;
-                        dev.send_output_report(&padded)
+                        let expected = padded.len();
+                        let written = dev.write(&padded).map_err(|e| {
+                            crate::error::AppError::new(
+                                crate::error::codes::DEVICE_UNREADABLE,
+                                format!("WriteFile Bluetooth ({expected} octets) : {e}")
+                            )
+                        })?;
+                        if written != expected {
+                            return Err(crate::error::AppError::new(
+                                crate::error::codes::DEVICE_UNREADABLE,
+                                format!("WriteFile Bluetooth partiel : {written}/{expected} octets")
+                            ));
+                        }
+                        Ok(())
                     } else {
-                        dev.write(&packet).map(|_| ())
-                    };
-                    result.map_err(|e| crate::error::AppError::new(
-                        crate::error::codes::DEVICE_UNREADABLE,
-                        format!("envoi HID : {e}")
-                    ))
+                        dev.write(&packet).map(|_| ()).map_err(|e| {
+                            crate::error::AppError::new(
+                                crate::error::codes::DEVICE_UNREADABLE,
+                                format!("WriteFile USB : {e}")
+                            )
+                        })
+                    }
                 };
 
                 if rumble_deadline.is_some_and(|deadline| Instant::now() >= deadline) {
@@ -310,7 +329,7 @@ fn spawn_reader(
                 if let Ok(output) = build_report(device.transport, 0, 0) {
                     if device.transport == Transport::Bluetooth {
                         if let Ok(padded) = pad_windows_bt_output(output, windows_bt_output_cap) {
-                            let _ = dev.send_output_report(&padded);
+                            let _ = dev.write(&padded);
                         }
                     } else {
                         let _ = dev.write(&output);

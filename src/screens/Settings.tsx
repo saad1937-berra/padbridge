@@ -51,6 +51,19 @@ export function Settings({
         </label>
       </section>
 
+      <section className="card flex flex-col gap-3" aria-label="Zone de notification Windows">
+        <h2>Zone de notification Windows</h2>
+        <p className="m-0">
+          Sur Windows, faites un clic droit sur l'icône PadBridge près de l'horloge pour afficher
+          « Masquer », « Afficher » ou « Quitter ». Un clic gauche sur l'icône rouvre la fenêtre.
+        </p>
+        <p className="muted m-0 text-xs">
+          Fermer la fenêtre avec × quitte réellement l'application. Si vous la masquez volontairement,
+          PadBridge reste actif et continue de lire les entrées HID. Choisissez « Quitter PadBridge »
+          dans la zone de notification pour libérer la manette avant de lancer un jeu.
+        </p>
+      </section>
+
       <section className="card flex flex-col gap-3" aria-label="Données locales">
         <h2>Données locales</h2>
         <p className="m-0">

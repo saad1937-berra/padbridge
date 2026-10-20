@@ -45,7 +45,7 @@
       <WarningLevel>Level4</WarningLevel>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>VhfKm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>VhfKm.lib;Wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

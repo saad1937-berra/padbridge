@@ -266,3 +266,13 @@ body {
     color: inherit;
   }
 }
+
+
+/* Contraste élevé Windows : les états ne doivent pas dépendre des couleurs de thème. */
+@media (forced-colors: active) {
+  :focus-visible { outline-color: Highlight; }
+  .nav-item[aria-current="page"],
+  .btn-primary { border: 2px solid Highlight; }
+  .pad-part[data-on="true"] { stroke: Highlight; stroke-width: 5; }
+  .badge { border-color: CanvasText; }
+}

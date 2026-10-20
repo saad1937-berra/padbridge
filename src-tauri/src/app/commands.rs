@@ -6,6 +6,8 @@ use super::permissions;
 use super::ui_events::{SharedTestSub, TestSub};
 use crate::diagnostics::{drift::{self, DriftReport, DriftSample}, export_text, health, DiagnosticsReport};
 use crate::engine::{ActivateResult, ControllerView, Engine, SaveOutcome};
+use crate::devices::model::{ConnectionState, ControllerModel, Transport};
+use crate::devices::rumble::RumbleRegistry;
 use crate::error::{codes, AppError, AppResult};
 use crate::profiles::schema::{AppSettings, OutputMode, Profile, ValidationReport};
 use std::sync::Arc;
@@ -14,6 +16,7 @@ use tauri::State;
 pub struct AppState {
     pub engine: Arc<Engine>,
     pub test_sub: SharedTestSub,
+    pub rumble: Arc<RumbleRegistry>,
 }
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> AppResult<T> {
@@ -147,6 +150,36 @@ pub async fn export_diagnostics(state: State<'_, AppState>, path: String) -> App
 #[tauri::command]
 pub fn analyze_stick_drift(samples: Vec<DriftSample>) -> AppResult<DriftReport> {
     drift::analyze(&samples)
+}
+
+/// Impulsion manuelle DualShock 4 : 10-60 % et 100-500 ms, aucune vibration persistante.
+#[tauri::command]
+pub async fn test_ds4_rumble(
+    state: State<'_, AppState>,
+    device_id: String,
+    intensity: u8,
+    duration_ms: u16,
+) -> AppResult<()> {
+    let id = permissions::device_id(&device_id)?.to_string();
+    let controller = state.engine.get_controller(&id)?;
+    if controller.device.model != ControllerModel::DualShock4
+        || !matches!(controller.device.transport, Transport::Bluetooth | Transport::Usb)
+        || !matches!(controller.state.connection_state, ConnectionState::Connected | ConnectionState::Unstable)
+    {
+        return Err(AppError::new(codes::DEVICE_UNREADABLE, "une DualShock 4 lisible doit être connectée"));
+    }
+    if !(10..=60).contains(&intensity) || !(100..=500).contains(&duration_ms) {
+        return Err(AppError::new(codes::INVALID_ARGUMENT, "intensité 10–60 %, durée 100–500 ms"));
+    }
+    let rumble = state.rumble.clone();
+    blocking(move || rumble.pulse(&id, intensity * 2, intensity * 3, duration_ms)).await?
+}
+
+#[tauri::command]
+pub async fn stop_ds4_rumble(state: State<'_, AppState>, device_id: String) -> AppResult<()> {
+    let id = permissions::device_id(&device_id)?.to_string();
+    let rumble = state.rumble.clone();
+    blocking(move || rumble.stop(&id)).await?
 }
 
 #[tauri::command]

@@ -15,7 +15,7 @@ Cette procédure valide le logiciel **sans VM ni installation de pilote expérim
 - [ ] Sélectionner intensité **20 %** et durée **1 seconde**, puis cliquer une seule fois sur **Tester la vibration**.
 - [ ] Vérifier **physiquement** si la manette vibre et si l'effet cesse rapidement. Si aucune vibration, relever le message exact ; ne pas conclure au succès simplement parce que l'écriture HID a réussi.
 - [ ] Essayer **Arrêter** si nécessaire ; aucun effet ne doit persister après une déconnexion ou fermeture.
-- [ ] Si la vibration fonctionne : répéter une fois à **30 % / 250 ms** puis vérifier que la lecture des touches continue de fonctionner.
+- [ ] Si la vibration fonctionne : répéter une fois à **30 % / 1,5 seconde** puis vérifier que la lecture des touches continue de fonctionner.
 - [ ] Le bouton doit être indisponible pour une DualSense ; aucune installation de pilote n'est autorisée.
 
 ## POC A — HID réel

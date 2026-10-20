@@ -10,7 +10,7 @@ Cette procédure valide le logiciel **sans VM ni installation de pilote expérim
 
 ### Diagnostic Windows HID (erreur 87)
 
-Si une impulsion retourne `PB-E202 : Paramètre incorrect (os error 87)`, utiliser le bouton **Examiner la sortie HID (sans vibration)**. Sous Windows, la taille du tampon passé à `HidD_SetOutputReport` est celle de `HIDP_CAPS.OutputReportByteLength` ; le rapport DS4 Bluetooth 0x11 lui-même ne contient que 78 octets. PadBridge complète le tampon avec des zéros après le CRC (aux octets 74–77), sans recalculer le CRC sur le tampon complété. Vérifier d'abord la CI Windows. Ne refaire qu'un essai 20 % / 1 seconde et collecter le message exact ; si l'erreur persiste, ne pas multiplier les essais.
+L'erreur `PB-E202 : Paramètre incorrect (os error 87)` persiste malgré le tampon de 547 octets déclaré par Windows avec `HidD_SetOutputReport` (méthode de contrôle). Le correctif suivant utilise **`WriteFile` via `HidDevice::write`** (voie de sortie HID), toujours avec le rapport Bluetooth 0x11 de 78 octets, son CRC aux octets 74–77 et le tampon complété à la longueur Windows. Vérifier la CI et effectuer **un seul essai** à 20 % / 1 seconde, relever si Windows renvoie une erreur et si la vibration est physiquement ressentie. Un retour positif de `WriteFile` ne démontre pas que la manette a reçu la commande ; des adaptateurs Bluetooth peuvent accepter silencieusement un rapport sans livraison. Si aucun effet n'est obtenu, arrêter les essais et poursuivre par un diagnostic de transport, plutôt que d'augmenter l'intensité.
 
 ## T14 — Test de vibration DualShock 4
 

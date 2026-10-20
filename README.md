@@ -55,7 +55,7 @@ src-tauri/
 | PB-011 à PB-013 tests touches/axes, calibration | Fait : aperçu en direct et parcours guidé de 24 commandes HID brutes, **24/24 observées sur DS4 dans la recette utilisateur du 20/10/2026** ; relâchement et précision analogique à vérifier séparément |
 | PB-014/015 mapping simple, profils | Fait (dupliquer, renommer, réinitialiser, corruption → profil sûr) |
 | PB-016 mode natif | Fait |
-| PB-017/018 XInput + cycle de vie | Logique du moteur faite et testée avec un backend factice ; **aucun backend réel** |
+| PB-017/018 XInput + cycle de vie | Moteur et simulateur testés ; **POC du pilote maison KMDF/VHF commencé** (`driver/poc-vhf/`), compilation WDK non effectuée, backend XInput réel toujours absent |
 | PB-019/020 double entrée, Steam | Diagnostic et guide ; aucun masquage ni injection |
 | PB-022/023 journal, erreurs | Fait (codes PB-Exxx, export expurgé avec consentement) |
 | PB-024 accessibilité | Recette ciblée validée sur Windows 11 (20/10/2026) : navigation clavier/focus, annonce à la demande, thèmes, contraste élevé, Narrateur et mise à l'échelle 125 %. Zoom supérieur à 125 %, autres parcours et audit WCAG complet en attente |
@@ -85,6 +85,12 @@ Dans **Test de la manette → Vibrations**, le bouton « Tester la vibration » 
 Dans **Test de la manette → Vérification guidée**, démarrer volontairement un parcours de **24 contrôles de base** : 14 boutons, 8 directions des joysticks, 2 gâchettes. Chaque élément n'est marqué « Vérifiée » qu'après observation d'un nouvel échantillon HID brut pendant la session. Le seuil de déclenchement analogique est de 70 % de la course. L'avancement peut être arrêté et remis à zéro ; il n'est pas stocké ni exporté. L'interface exclut les boutons PS, pavé tactile et micro du parcours de base.
 
 **Limites :** les relâchements, l'exactitude des axes, la batterie, l'appairage initial et la reconnexion restent à évaluer séparément. Ce parcours ne modifie aucun profil, ne crée aucune manette virtuelle et ne sollicite pas les moteurs de vibration. Il ne prouve donc pas que les jeux reçoivent un remapping. La procédure de recette est dans `docs/VALIDATION_WINDOWS.md`.
+
+## Pilote virtuel maison — POC B (en développement, pas installable)
+
+Le nouveau dossier [`driver/poc-vhf/`](driver/poc-vhf/README.md) contient le début d'un **pilote noyau KMDF/VHF en C**, un descripteur de gamepad HID et un IOCTL contrôlé. Le module Rust `virtual_pad/vhf_protocol.rs` construit le rapport binaire de 10 octets (boutons, croix directionnelle, joysticks et gâchettes) avec tests unitaires **sans noyau ni matériel**.
+
+**Attention :** VHF produit un gamepad HID générique, **pas** une manette Xbox reconnue par XInput. Le code pilote n'a pas encore été compilé avec le WDK, n'a pas de package INF signé ni de broker sécurisé complet et **ne doit pas être installé sur le PC principal**. `selected_backend.rs` reste sur `NullBackend` : l'application et la DualShock 4 continuent de fonctionner comme avant. Les premiers essais du pilote seront réservés à un environnement de test isolé.
 
 ## Diagnostic de dérive (drift) — sans pilote supplémentaire
 

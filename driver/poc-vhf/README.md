@@ -1,6 +1,6 @@
 # POC B — pilote virtuel PadBridge (KMDF + VHF)
 
-**Etat : code source experimental, NON compile avec WDK et NON installe. Ne PAS l'installer sur le Windows 11 principal.**
+**Etat : prototype experimental compile avec WDK x64 dans GitHub Actions (20/10/2026), mais NON signe, NON installe et NON teste en execution. Ne PAS l'installer sur le Windows 11 principal.**
 
 Ce repertoire introduit une premiere base de pilote noyau **maison**, ecrite en C avec
 KMDF et **Virtual HID Framework (VHF)** de Microsoft. Il existe seulement pour
@@ -62,7 +62,7 @@ avec snapshot et outil de debogage noyau** :
    - Installer egalement le composant d'integration **Windows Driver Kit**
      dans Visual Studio Installer → Individual components.
    - Documentation officielle : https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk
-2. Ouvrir `PadBridgeVhf.vcxproj` dans Visual Studio et choisir
+2. Le projet a passe sa premiere compilation WDK x64 sur GitHub Actions ([run 39510109665](https://github.com/saad1937-berra/padbridge/actions/runs/39510109665)). Pour compiler localement si les outils sont disponibles, ouvrir `PadBridgeVhf.vcxproj` dans Visual Studio et choisir
    **Debug | x64 → Build**. Alternativement, depuis PowerShell dans le
    dossier `driver/poc-vhf` :
    ```powershell
@@ -70,7 +70,7 @@ avec snapshot et outil de debogage noyau** :
    ```
    La commande **compile uniquement** et ne cree ni package INF signe, ni
    machine virtuelle, ni pilote actif. Le projet C n'a **pas encore** ete
-   compile avec WDK par nos outils. Si une erreur survient, transmettre
+   compile avec WDK sur GitHub Actions ; les tests noyau restent a faire. Si une erreur survient, transmettre
    les **premieres erreurs** MSBuild (pas besoin de modifier les parametres
    de securite de Windows).
 3. Preparer ensuite, apres revue, un package INF pour un appareil de test
@@ -96,17 +96,14 @@ avec snapshot et outil de debogage noyau** :
 
 ## Portee du build WDK
 
-Le build generera eventuellement `PadBridgeVhf.sys` **uniquement si le
-code passe la compilation dans ton environnement WDK**. Le projet definit
+Le build a genere `PadBridgeVhf.sys` sur un runner GitHub Windows 2022 (19 456 octets, SHA-256 : `051E73108816D69A1B1F6D0DB9AD765A68B5F0CCA3E9C922D18697CB137C22C6`). En environnement WDK local, il generera ce fichier **uniquement si le code passe la compilation**. Le projet definit
 explicitement `SignMode=Off` ; le binaire qui en resulte, s'il existe,
 sera **non signe et impropre au chargement tel quel**. Aucune installation
 automatique n'existe. L'absence d'INF est volontaire tant que le watchdog,
 la gestion PnP et le broker privilegie n'ont pas ete audites. Compiler
 n'implique **ni execution ni chargement en memoire noyau**.
 
-Il faut encore mettre au point la compatibilite du projet `.vcxproj`
-avec la version precise de ton Visual Studio/WDK. Les tests GitHub Actions
-actuels compilent le moteur Rust et Tauri, **pas le code C du pilote**.
+Le workflow separe [`.github/workflows/driver-wdk-ci.yml`](../../.github/workflows/driver-wdk-ci.yml) utilise le WDK 26100 preinstalle sur `windows-2022` pour compiler le code C, verifier l'existence du `.sys` non signe et publier un artefact temporaire (24 h). Il n'installe ni n'execute le pilote. Une compilation reussie **ne valide pas le comportement en noyau**.
 
 ## Validation possible aujourd'hui, sans pilote
 

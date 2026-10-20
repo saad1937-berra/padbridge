@@ -42,7 +42,7 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
     setMessage(null);
     try {
       await api.testDs4Rumble(device.deviceId, intensity, duration);
-      setMessage(`Séquence HID terminée (${(duration / 1000).toLocaleString("fr-FR")} s demandée). Windows a accepté les commandes de démarrage et d’arrêt ; confirme si tu as senti une vibration.`);
+      setMessage(`Écriture HID acceptée par Windows sur ${(duration / 1000).toLocaleString("fr-FR")} s de test. La vibration physique reste NON CONFIRMÉE : indique si tu l’as réellement ressentie.`);
     } catch (e) {
       const err = toApiError(e);
       setError(`${err.code} : ${err.detail}`);
@@ -111,7 +111,7 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
               <p className="muted m-0 text-xs">Windows peut annoncer la taille maximale de la collection, pas seulement celle du rapport 0x11. Cette inspection n'envoie aucune commande motrice.</p>
             </div>
           )}
-          {message && <div className="notice notice-ok" role="status">{message}</div>}
+          {message && <div className="notice notice-warn" role="status">{message}</div>}
           {error && <div className="notice notice-err" role="alert">{error}</div>}
           <p className="muted m-0 text-xs">
             Test limité à 2 secondes par commande, et à 60 % d'intensité dans l'interface.

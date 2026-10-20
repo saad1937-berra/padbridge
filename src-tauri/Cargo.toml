@@ -31,11 +31,18 @@ broker-poc = ["dep:windows-sys"]
 # One-shot local named-pipe service preview (DENIES injection).
 # Explicit opt-in only; no installer, SCM registration or autostart.
 broker-service-poc = ["broker-poc", "windows-sys/Win32_System_Pipes", "windows-sys/Win32_Security_Authorization", "windows-sys/Win32_System_Threading"]
+# Inert SCM START/STOP status skeleton. No IPC or kernel transport starts.
+broker-scm-poc = ["broker-service-poc", "windows-sys/Win32_System_Services"]
 
 [[bin]]
 name = "padbridge-broker-preview"
 path = "src/bin/padbridge-broker-preview.rs"
 required-features = ["broker-service-poc"]
+
+[[bin]]
+name = "padbridge-broker-scm"
+path = "src/bin/padbridge-broker-scm.rs"
+required-features = ["broker-scm-poc"]
 
 [build-dependencies]
 tauri-build = { version = "2", optional = true , features = [] }

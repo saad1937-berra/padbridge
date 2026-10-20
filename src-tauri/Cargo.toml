@@ -28,6 +28,14 @@ custom-protocol = ["desktop", "tauri/custom-protocol"]
 # Prototype Windows dormant : transport direct a l'interface KMDF.
 # Pas de service installe, de droits eleves, d'IPC ou de branchement Tauri.
 broker-poc = ["dep:windows-sys"]
+# One-shot local named-pipe service preview (DENIES injection).
+# Explicit opt-in only; no installer, SCM registration or autostart.
+broker-service-poc = ["broker-poc", "windows-sys/Win32_System_Pipes", "windows-sys/Win32_Security_Authorization"]
+
+[[bin]]
+name = "padbridge-broker-preview"
+path = "src/bin/padbridge-broker-preview.rs"
+required-features = ["broker-service-poc"]
 
 [build-dependencies]
 tauri-build = { version = "2", optional = true , features = [] }

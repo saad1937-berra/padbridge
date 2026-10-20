@@ -32,6 +32,8 @@ Octets : `[id=1, buttons_lo, buttons_hi, hat, lx, ly, rx, ry, lt, rt]`.
   5=bas-gauche,6=gauche,7=haut-gauche,8=neutre.
 - **Axes** : LX/LY/RX/RY signes, -127 a +127. Gachettes : 0 a 255.
 - **IOCTL** : METHOD_BUFFERED, FILE_WRITE_DATA, longueur exactement 10.
+  La fermeture du handle envoie un rapport neutre ; cette securite partielle
+  ne remplace pas un watchdog et un controle exclusif de la pile PnP.
   Le pilote rejette l'ID invalide, les bits reserves, hat > 8 et axes -128.
 - Aucun identifiant VID/PID de Sony, Microsoft ou d'un tiers n'est forge.
 - Aucune commande de sortie HID et aucune commande de vibration n'existe
@@ -56,9 +58,11 @@ avec snapshot et outil de debogage noyau** :
    **root-enumerated**, avec `vhf` en `LowerFilters`, et un mecanisme
    de signature adapte a la VM. Etudier la compatibilite de ce montage
    avec le modele PnP et de puissance.
-4. Ajouter un **watchdog et une remise a l'etat neutre sur fermeture/timeout
-   du client**, ainsi que la gestion des transitions D0 et la concurrence,
-   avant tout essai d'injection d'un rapport non neutre.
+4. La fermeture du handle client declenche deja une tentative de remise
+   a l'etat neutre ; cette logique reste **non verifiee sous WDK**.
+   Ajouter imperativement un **watchdog sur absence de nouvelles trames**,
+   gerer les transitions D0, les collisions avec la suppression PnP et la
+   concurrence, avant tout essai d'injection d'un rapport non neutre.
 5. Ecrire un **broker local restreint** qui traduira les `OutputState`
    du moteur en rapports VHF. L'interface noyau est limitee a SYSTEM /
    administrateurs : **ne jamais elever directement la fenetre Tauri**,

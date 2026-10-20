@@ -26,24 +26,21 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Diagnose installed Windows Driver Kit
+      - name: Verify Windows Driver Kit 26100 components
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           msbuild -version
           $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
-          Write-Host "Kits root: $kits"
-          if (!(Test-Path -LiteralPath $kits)) {
-            throw "Windows Kits installation directory missing on GitHub runner"
-          }
-          foreach ($filename in @('ntddk.h', 'wdf.h', 'vhf.h', 'VhfKm.lib')) {
-            $matches = @(Get-ChildItem -Path $kits -Recurse -File -Filter $filename -ErrorAction SilentlyContinue |
-              Select-Object -First 5 -ExpandProperty FullName)
-            if ($matches.Count -eq 0) {
-              Write-Warning "WDK component not found: $filename"
-            } else {
-              foreach ($match in $matches) { Write-Host "$filename => $match" }
-            }
+          $required = @(
+            'Include\10.0.26100.0\km\ntddk.h',
+            'Include\10.0.26100.0\shared\vhf.h',
+            'Lib\10.0.26100.0\km\x64\VhfKm.lib'
+          )
+          foreach ($relative in $required) {
+            $path = Join-Path $kits $relative
+            if (!(Test-Path -LiteralPath $path)) { throw "Missing WDK dependency: $path" }
+            Write-Host "WDK OK: $path"
           }
 
       - name: Build unsigned kernel driver source

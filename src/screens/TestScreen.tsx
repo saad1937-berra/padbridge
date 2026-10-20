@@ -125,7 +125,8 @@ export function TestScreen({
             <Meter label="R2 calculé" value={out?.rt ?? 0} />
           </div>
           <table className="data">
-            <thead><tr><th>Stick</th><th>X brut</th><th>Y brut</th><th>X calculé</th><th>Y calculé</th></tr></thead>
+            <caption className="sr-only">Positions des joysticks, brutes et calculées</caption>
+            <thead><tr><th scope="col">Stick</th><th scope="col">X brut</th><th scope="col">Y brut</th><th scope="col">X calculé</th><th scope="col">Y calculé</th></tr></thead>
             <tbody>
               <tr>
                 <th scope="row">Gauche</th>

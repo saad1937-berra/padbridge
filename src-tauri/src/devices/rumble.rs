@@ -31,19 +31,15 @@ pub fn build_report(transport: Transport, right: u8, left: u8) -> AppResult<Vec<
         Transport::Bluetooth => {
             let mut output = vec![0u8; 78];
             output[0] = 0x11;
-            // Disposition Sony DS4 utilisée par le périphérique de jeu Chromium :
-            // rapport 0x11, entête BT et flags spécifiques ; CRC à la fin.
-            // La valeur F1 active les moteurs sans réclamer de modification LED.
-            output[1] = 0xC0;
-            output[2] = 0x20;
-            output[3] = 0xF1;
-            output[4] = 0x04;
-            output[6] = right; // moteur rapide, faible amplitude
-            output[7] = left;  // moteur lent, grande amplitude
-            output[21] = 0x43; // valeur utilisée par le pilote de jeu Chromium
-            output[22] = 0x43;
-            output[24] = 0x4D;
-            output[25] = 0x85;
+            // Format minimal du protocole Sony DualShock 4 officiel
+            // (SDL_hidapi_ps4.c, HIDAPI_DriverPS4_InternalSendJoystickEffect).
+            // 0xC4 = HID+CRC + intervalle 4 ms ; 0x01 = validité RUMBLE seule.
+            // Ne pas transmettre les anciens flags 0xF1 ni les octets non-moteurs.
+            // Les moteurs sont décalés à +6 dans le rapport Bluetooth 0x11.
+            output[1] = 0xC4;
+            output[3] = 0x01;
+            output[6] = right; // moteur rapide
+            output[7] = left;  // moteur lent
             let checksum = bluetooth_crc(&output[..74]);
             output[74..78].copy_from_slice(&checksum.to_le_bytes());
             Ok(output)
@@ -151,8 +147,8 @@ mod tests {
     fn bt_layout_crc_and_idle_frame() {
         let active = build_report(Transport::Bluetooth, 30, 80).unwrap();
         assert_eq!(active.len(), 78);
-        assert_eq!(&active[..8], &[0x11, 0xC0, 0x20, 0xF1, 0x04, 0, 30, 80]);
-        assert_eq!(&active[21..26], &[0x43, 0x43, 0, 0x4D, 0x85]);
+        assert_eq!(&active[..8], &[0x11, 0xC4, 0, 0x01, 0, 0, 30, 80]);
+        assert!(active[8..74].iter().all(|byte| *byte == 0));
         assert_eq!(u32::from_le_bytes(active[74..78].try_into().unwrap()), bluetooth_crc(&active[..74]));
         let stopped = build_report(Transport::Bluetooth, 0, 0).unwrap();
         assert_eq!(stopped.len(), 78);

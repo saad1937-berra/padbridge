@@ -23,7 +23,7 @@ L'erreur `PB-E202 : Paramètre incorrect (os error 87)` persiste malgré le tamp
 
 ## T14 — Test de vibration DualShock 4
 
-**SUSPENDU** : la DS4 répond en Bluetooth dans `joy.cpl` et EA FC 26 après redémarrage Windows. Les tests HID `WriteFile` de T14 ne déclenchent pas de vibration physique. Un essai Steam Input a temporairement rendu les commandes inopérantes, rétablies après redémarrage ; la cause précise du blocage n'a pas été établie. **Ne plus lancer de tests de vibration T14 sur le PC principal avant une nouvelle analyse et un banc d'essai approprié.**
+**SUSPENDU (bouton d'impulsion désactivé dans l'interface)** : la DS4 répond en Bluetooth dans `joy.cpl` et EA FC 26 après redémarrage Windows. Les tests HID `WriteFile` de T14 ne déclenchent pas de vibration physique. Un essai Steam Input a temporairement rendu les commandes inopérantes, rétablies après redémarrage ; la cause précise du blocage n'a pas été établie. **Ne plus lancer de tests de vibration T14 sur le PC principal avant une nouvelle analyse et un banc d'essai approprié.**
 
 - [ ] Depuis la branche de travail, terminer une compilation Windows sans erreur.
 - [ ] Connecter la DualShock 4 en Bluetooth, ouvrir **Test de la manette**.

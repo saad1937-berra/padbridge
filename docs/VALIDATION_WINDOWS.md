@@ -62,7 +62,8 @@ Ce test est **strictement en lecture seule** et n'a aucun lien avec T14.
 - [ ] L'écran **Appareils** identifie le modèle et le transport Bluetooth.
 - [x] **Test ciblé Croix (20/10/2026)** : l'écran « Boutons actifs » affiche Croix pendant l'appui, puis « aucun » une fois la touche relâchée (confirmation utilisateur).
 - [ ] L'écran **Test manette** montre chaque bouton pressé puis relâché.
-- [ ] Sticks gauche/droit : axes X/Y atteignent des valeurs proches de -1/+1 et reviennent près de zéro.
+- [x] Sticks gauche/droit au repos : les quatre axes bruts X/Y restent proches de zéro, confirmé par l'utilisateur le 20/10/2026 (valeurs exactes non relevées).
+- [ ] Sticks gauche/droit : confirmer séparément les valeurs proches de -1/+1 aux extrémités, le retour au centre après chaque direction et l'absence de jitter notable.
 - [ ] Gâchettes L2/R2 : variation progressive de 0 à 1.
 - [ ] Batteries : valeur plausible ou « Inconnue », jamais une valeur inventée.
 - [ ] Éteindre la manette : état déconnecté affiché sans bloquer l'interface.

@@ -67,15 +67,16 @@ export function MappingEditor({ profile, onChange }: { profile: Profile; onChang
         <button className="btn" onClick={() => onChange({ ...profile, mapping: {} })}>Rétablir le préréglage standard</button>
       </div>
       <table className="data">
+        <caption className="sr-only">Mapping des touches du profil</caption>
         <thead>
-          <tr><th>Touche de la manette</th><th>Action calculée (aperçu)</th></tr>
+          <tr><th scope="col">Touche de la manette</th><th scope="col">Action calculée (aperçu)</th></tr>
         </thead>
         <tbody>
           {PS_BUTTONS.map((b) => {
             const hasStandard = STANDARD_PRESET[b] !== undefined;
             return (
               <tr key={b}>
-                <td><label htmlFor={`map-${b}`}>{psButtonLabel[b]}</label></td>
+                <th scope="row"><label htmlFor={`map-${b}`}>{psButtonLabel[b]}</label></th>
                 <td>
                   <select
                     id={`map-${b}`}

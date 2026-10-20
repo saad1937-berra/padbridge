@@ -67,8 +67,18 @@ static UCHAR PbReportDescriptor[] = {
     0xC0,             // End Collection
 };
 
+// Toutes les operations VHF, y compris les callbacks d'arret, sont
+// serialisees avec un verrou KMDF PASSIVE_LEVEL.
+#define PB_WATCHDOG_INTERVAL_MS 200u
+#define PB_WATCHDOG_TIMEOUT_MS 800u
+
 typedef struct _PB_DEVICE_CONTEXT {
     VHFHANDLE VhfHandle;
+    WDFWAITLOCK ReportLock;
+    WDFTIMER WatchdogTimer;
+    ULONGLONG LastReportTime100ns;
+    BOOLEAN HasActiveInput;
+    BOOLEAN PowerReady;
 } PB_DEVICE_CONTEXT, *PPB_DEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(PB_DEVICE_CONTEXT, PbGetContext);
@@ -77,6 +87,99 @@ EVT_WDF_DRIVER_DEVICE_ADD PbEvtDeviceAdd;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP PbEvtDeviceCleanup;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL PbEvtIoDeviceControl;
 EVT_WDF_FILE_CLEANUP PbEvtFileCleanup;
+EVT_WDF_DEVICE_D0_ENTRY PbEvtD0Entry;
+EVT_WDF_DEVICE_D0_EXIT PbEvtD0Exit;
+EVT_WDF_TIMER PbEvtWatchdog;
+
+// Appeler uniquement lorsque ReportLock est deja acquis.
+static NTSTATUS PbSubmitNeutralLocked(PPB_DEVICE_CONTEXT context)
+{
+    PB_VHF_REPORT neutral = { 0 };
+    HID_XFER_PACKET packet = { 0 };
+    NTSTATUS status;
+
+    if (context->VhfHandle == NULL || !context->PowerReady) {
+        return STATUS_DEVICE_NOT_READY;
+    }
+    neutral.ReportId = PB_VHF_REPORT_ID;
+    neutral.Hat = PB_VHF_HAT_NEUTRAL;
+    packet.reportId = PB_VHF_REPORT_ID;
+    packet.reportBuffer = (PUCHAR)&neutral;
+    packet.reportBufferLen = (ULONG)sizeof(neutral);
+
+    status = VhfReadReportSubmit(context->VhfHandle, &packet);
+    if (NT_SUCCESS(status)) {
+        context->HasActiveInput = FALSE;
+        context->LastReportTime100ns = 0;
+    }
+    return status;
+}
+
+static BOOLEAN PbReportHasInput(const PB_VHF_REPORT* report)
+{
+    return report->Buttons != 0 || report->Hat != PB_VHF_HAT_NEUTRAL ||
+        report->Lx != 0 || report->Ly != 0 ||
+        report->Rx != 0 || report->Ry != 0 ||
+        report->Lt != 0 || report->Rt != 0;
+}
+
+// Timer PASSIVE_LEVEL, parent WDFDEVICE. Le test de date et la soumission
+// sont atomiques vis-a-vis de l'IOCTL et des transitions D0.
+_Use_decl_annotations_
+VOID PbEvtWatchdog(WDFTIMER Timer)
+{
+    WDFDEVICE device = (WDFDEVICE)WdfObjectGetParentObject(Timer);
+    PPB_DEVICE_CONTEXT context = PbGetContext(device);
+
+    WdfWaitLockAcquire(context->ReportLock, NULL);
+    if (context->PowerReady && context->HasActiveInput) {
+        ULONGLONG elapsed = KeQueryInterruptTime() - context->LastReportTime100ns;
+        if (elapsed >= (ULONGLONG)PB_WATCHDOG_TIMEOUT_MS * 10000ull) {
+            (VOID)PbSubmitNeutralLocked(context);
+        }
+    }
+    WdfWaitLockRelease(context->ReportLock);
+}
+
+// Le timer et la file IO sont des enfants WDF du peripherique ; l'arret
+// du timer avec Wait=TRUE doit se faire HORS du verrou partage.
+_Use_decl_annotations_
+NTSTATUS PbEvtD0Entry(WDFDEVICE Device, WDF_POWER_DEVICE_STATE PreviousState)
+{
+    PPB_DEVICE_CONTEXT context = PbGetContext(Device);
+    NTSTATUS status;
+
+    UNREFERENCED_PARAMETER(PreviousState);
+
+    WdfWaitLockAcquire(context->ReportLock, NULL);
+    context->PowerReady = TRUE;
+    status = PbSubmitNeutralLocked(context);
+    if (!NT_SUCCESS(status)) {
+        context->PowerReady = FALSE;
+    }
+    WdfWaitLockRelease(context->ReportLock);
+
+    if (NT_SUCCESS(status)) {
+        WdfTimerStart(context->WatchdogTimer, WDF_REL_TIMEOUT_IN_MS(PB_WATCHDOG_INTERVAL_MS));
+    }
+    return status;
+}
+
+_Use_decl_annotations_
+NTSTATUS PbEvtD0Exit(WDFDEVICE Device, WDF_POWER_DEVICE_STATE TargetState)
+{
+    PPB_DEVICE_CONTEXT context = PbGetContext(Device);
+
+    UNREFERENCED_PARAMETER(TargetState);
+
+    WdfTimerStop(context->WatchdogTimer, TRUE);
+    WdfWaitLockAcquire(context->ReportLock, NULL);
+    (VOID)PbSubmitNeutralLocked(context);
+    context->PowerReady = FALSE;
+    context->HasActiveInput = FALSE;
+    WdfWaitLockRelease(context->ReportLock);
+    return STATUS_SUCCESS;
+}
 
 _Use_decl_annotations_
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -98,22 +201,17 @@ VOID PbEvtDeviceCleanup(WDFOBJECT Object)
     }
 }
 
-// Si le client unique ferme son handle (y compris apres un crash), retirer
-// les commandes maintenues. Un watchdog temporel est encore requis avant VM.
+// Fermeture du client : remet les commandes a zero, si le peripherique
+// est encore alimente. Idempotent avec D0Exit et l'expiration du watchdog.
 _Use_decl_annotations_
 VOID PbEvtFileCleanup(WDFFILEOBJECT FileObject)
 {
     PPB_DEVICE_CONTEXT context = PbGetContext(WdfFileObjectGetDevice(FileObject));
-    PB_VHF_REPORT neutral = { 0 };
-    HID_XFER_PACKET packet = { 0 };
 
-    if (context->VhfHandle == NULL) return;
-    neutral.ReportId = PB_VHF_REPORT_ID;
-    neutral.Hat = PB_VHF_HAT_NEUTRAL;
-    packet.reportId = PB_VHF_REPORT_ID;
-    packet.reportBuffer = (PUCHAR)&neutral;
-    packet.reportBufferLen = (ULONG)sizeof(neutral);
-    (VOID)VhfReadReportSubmit(context->VhfHandle, &packet);
+    WdfWaitLockAcquire(context->ReportLock, NULL);
+    (VOID)PbSubmitNeutralLocked(context);
+    context->HasActiveInput = FALSE;
+    WdfWaitLockRelease(context->ReportLock);
 }
 
 _Use_decl_annotations_
@@ -156,17 +254,24 @@ VOID PbEvtIoDeviceControl(
         WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
         return;
     }
-    if (context->VhfHandle == NULL) {
-        WdfRequestComplete(Request, STATUS_DEVICE_NOT_READY);
-        return;
-    }
-
     // VHF utilise son tampon par defaut. Le rapport local est reutilisable
-    // des le retour de VhfReadReportSubmit.
-    packet.reportId = PB_VHF_REPORT_ID;
-    packet.reportBuffer = (PUCHAR)&report;
-    packet.reportBufferLen = (ULONG)sizeof(report);
-    status = VhfReadReportSubmit(context->VhfHandle, &packet);
+    // des le retour de VhfReadReportSubmit. Le verrou empeche la course
+    // avec le watchdog, FileCleanup et la mise en veille D0Exit.
+    WdfWaitLockAcquire(context->ReportLock, NULL);
+    if (context->VhfHandle == NULL || !context->PowerReady) {
+        status = STATUS_DEVICE_NOT_READY;
+    } else {
+        packet.reportId = PB_VHF_REPORT_ID;
+        packet.reportBuffer = (PUCHAR)&report;
+        packet.reportBufferLen = (ULONG)sizeof(report);
+        status = VhfReadReportSubmit(context->VhfHandle, &packet);
+        if (NT_SUCCESS(status)) {
+            context->HasActiveInput = PbReportHasInput(&report);
+            context->LastReportTime100ns =
+                context->HasActiveInput ? KeQueryInterruptTime() : 0;
+        }
+    }
+    WdfWaitLockRelease(context->ReportLock);
     WdfRequestComplete(Request, status);
 }
 
@@ -178,6 +283,10 @@ NTSTATUS PbEvtDeviceAdd(WDFDRIVER Driver, PWDFDEVICE_INIT DeviceInit)
     WDF_OBJECT_ATTRIBUTES attributes;
     WDF_IO_QUEUE_CONFIG queueConfig;
     WDF_FILEOBJECT_CONFIG fileConfig;
+    WDF_OBJECT_ATTRIBUTES lockAttributes;
+    WDF_OBJECT_ATTRIBUTES timerAttributes;
+    WDF_TIMER_CONFIG timerConfig;
+    WDF_PNPPOWER_EVENT_CALLBACKS pnpCallbacks;
     VHF_CONFIG vhfConfig;
     PPB_DEVICE_CONTEXT context;
     UNICODE_STRING name = RTL_CONSTANT_STRING(L"\\Device\\PadBridgeVhfPoc");
@@ -199,6 +308,11 @@ NTSTATUS PbEvtDeviceAdd(WDFDRIVER Driver, PWDFDEVICE_INIT DeviceInit)
         &fileConfig, WDF_NO_EVENT_CALLBACK, WDF_NO_EVENT_CALLBACK, PbEvtFileCleanup);
     WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig, WDF_NO_OBJECT_ATTRIBUTES);
 
+    WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnpCallbacks);
+    pnpCallbacks.EvtDeviceD0Entry = PbEvtD0Entry;
+    pnpCallbacks.EvtDeviceD0Exit = PbEvtD0Exit;
+    WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpCallbacks);
+
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, PB_DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = PbEvtDeviceCleanup;
     attributes.ExecutionLevel = WdfExecutionLevelPassive;
@@ -208,6 +322,26 @@ NTSTATUS PbEvtDeviceAdd(WDFDRIVER Driver, PWDFDEVICE_INIT DeviceInit)
 
     context = PbGetContext(device);
     context->VhfHandle = NULL;
+    context->WatchdogTimer = NULL;
+    context->ReportLock = NULL;
+    context->HasActiveInput = FALSE;
+    context->LastReportTime100ns = 0;
+    context->PowerReady = FALSE;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
+    lockAttributes.ParentObject = device;
+    status = WdfWaitLockCreate(&lockAttributes, &context->ReportLock);
+    if (!NT_SUCCESS(status)) return status;
+
+    // Timer periodique a PASSIVE_LEVEL : requis pour attendre le verrou WDFWAITLOCK.
+    WDF_TIMER_CONFIG_INIT_PERIODIC(
+        &timerConfig, PbEvtWatchdog, PB_WATCHDOG_INTERVAL_MS);
+    timerConfig.AutomaticSerialization = FALSE;
+    WDF_OBJECT_ATTRIBUTES_INIT(&timerAttributes);
+    timerAttributes.ParentObject = device;
+    timerAttributes.ExecutionLevel = WdfExecutionLevelPassive;
+    status = WdfTimerCreate(&timerConfig, &timerAttributes, &context->WatchdogTimer);
+    if (!NT_SUCCESS(status)) return status;
 
     WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queueConfig, WdfIoQueueDispatchSequential);
     queueConfig.EvtIoDeviceControl = PbEvtIoDeviceControl;

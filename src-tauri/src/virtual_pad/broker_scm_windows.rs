@@ -6,7 +6,7 @@
 //! not "PadBridge virtual controller available".
 
 use std::{io, ptr, sync::atomic::{AtomicIsize, Ordering}};
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, NO_ERROR};
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, NO_ERROR, WAIT_OBJECT_0};
 use windows_sys::Win32::System::Services::{
     RegisterServiceCtrlHandlerExW, SetServiceStatus, StartServiceCtrlDispatcherW,
     SERVICE_ACCEPT_STOP, SERVICE_CONTROL_STOP, SERVICE_RUNNING, SERVICE_START_PENDING,
@@ -14,7 +14,7 @@ use windows_sys::Win32::System::Services::{
     SERVICE_TABLE_ENTRYW, SERVICE_WIN32_OWN_PROCESS,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateEventW, SetEvent, WaitForSingleObject, INFINITE, WAIT_OBJECT_0,
+    CreateEventW, SetEvent, WaitForSingleObject, INFINITE,
 };
 
 pub const SERVICE_NAME: &str = "PadBridgeBrokerPreview";

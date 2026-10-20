@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { api, toApiError } from "../lib/api";
 import type { ControllerDevice, HidOutputInfo } from "../lib/types";
 
+// Gel des impulsions T14 après échec des tests Bluetooth et incident de lecture HID.
+// Le diagnostic des capacités reste accessible car il n'écrit rien sur la manette.
+const T14_PAUSED = true;
+
 export function RumbleTest({ device, connected }: { device: ControllerDevice; connected: boolean }) {
   const [intensity, setIntensity] = useState(20);
   const [duration, setDuration] = useState(1000);
@@ -36,6 +40,7 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
   };
 
   const run = async () => {
+    if (T14_PAUSED) return;
     activePulse.current = true;
     setBusy(true);
     setError(null);
@@ -74,6 +79,12 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
         Essai volontaire des moteurs de la DualShock 4. Les commandes utilisent le protocole HID
         natif, sans pilote supplémentaire. Aucun effet n'est transmis depuis les jeux.
       </p>
+      {T14_PAUSED && (
+        <p className="notice notice-warn m-0" role="status">
+          T14 — vibrations en pause après échec des essais Bluetooth. Les commandes d'impulsion
+          sont désactivées pour préserver la connexion. L'inspection HID en lecture seule reste possible.
+        </p>
+      )}
       {!supported ? (
         <p className="notice notice-warn m-0">Ce premier prototype ne prend en charge que la DualShock 4 (Bluetooth ou USB).</p>
       ) : (
@@ -89,8 +100,8 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
               onChange={(e) => setDuration(Number(e.target.value))} disabled={!enabled || busy} />
           </label>
           <div className="flex flex-wrap gap-2">
-            <button className="btn btn-primary" disabled={!enabled || busy} onClick={() => void run()}>
-              {busy ? "Impulsion en cours…" : "Tester la vibration"}
+            <button className="btn btn-primary" disabled={!enabled || busy || T14_PAUSED} onClick={() => void run()}>
+              {T14_PAUSED ? "Test suspendu (T14)" : busy ? "Impulsion en cours…" : "Tester la vibration"}
             </button>
             <button className="btn" disabled={!enabled} onClick={() => void stop()}>
               Arrêter

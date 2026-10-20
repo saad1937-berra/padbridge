@@ -71,6 +71,12 @@ src-tauri/
 
 Le code Windows (`enumeration.rs`, lecture HID, commandes `cmd`/`powershell`/`tasklist`) n'a pas pu être compilé ni exécuté dans l'environnement de développement (Linux). La couche Tauri compile (`cargo check`) et l'interface a été contrôlée dans un navigateur avec le moteur simulé. Si `cargo build` signale une erreur côté Windows, elle sera dans `devices/enumeration.rs` ou `diagnostics/health.rs`.
 
+## Vibration manuelle DualShock 4 (prototype à valider)
+
+Dans **Test de la manette → Vibrations**, le bouton « Tester la vibration » tente d'envoyer directement un rapport de sortie HID à la DualShock 4, en USB (0x05) ou Bluetooth (0x11 + CRC32), via le **thread de lecture HID déjà ouvert**. Le protocole est implémenté en Rust dans `devices/rumble.rs`, sans pilote supplémentaire ni émulation Xbox. Intensité de l'interface 10 à 60 %, durée 100 à 500 ms, envoi d'un rapport neutre par le thread après l'expiration, à la déconnexion et à l'arrêt de l'application. Cette fonctionnalité n'est **pas encore validée sur une vraie DualShock 4** : une écriture HID acceptée par Windows ne confirme pas une vibration physique. En cas d'erreur, ne tentez pas d'installer un pilote inconnu ; transmettez le code d'erreur affiché.
+
+**Ce n'est pas du retour de force en jeu :** PadBridge n'intercepte pas les effets des jeux et le mode natif reste inchangé. Le support DualSense nécessitera un protocole spécifique distinct.
+
 ## Diagnostic de dérive (drift) — sans pilote supplémentaire
 
 Dans **Test de la manette**, cliquez sur **Tester mes joysticks (5 s)**, posez la manette et ne touchez pas aux sticks. PadBridge collecte les axes HID bruts et fait analyser les mesures par le moteur Rust. Le statut peut être normal, dérive possible, mouvement détecté ou incertain. L'outil ne répare pas les joysticks, ne modifie pas les profils et ne constitue pas un diagnostic matériel définitif. Répétez toute mesure suspecte dans des conditions stables.

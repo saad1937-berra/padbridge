@@ -101,7 +101,6 @@ impl<T: ReportTransport> Drop for BrokerSession<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::devices::model::Bit;
     use crate::virtual_pad::backend::XButton;
     use std::sync::{Arc, Mutex};
 

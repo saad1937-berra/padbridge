@@ -182,6 +182,70 @@ pub async fn stop_ds4_rumble(state: State<'_, AppState>, device_id: String) -> A
     blocking(move || rumble.stop(&id)).await?
 }
 
+/// Mesure en lecture seule des capacités de sortie HID de la collection choisie.
+/// L'identifiant local est vérifié ; aucun chemin ou numéro de série n'est retourné.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HidOutputInfo {
+    pub model: String,
+    pub transport: String,
+    pub requested_report_id: String,
+    pub requested_length: usize,
+    pub windows_output_report_byte_length: Option<u16>,
+    pub windows_caps_error: Option<String>,
+}
+
+#[tauri::command]
+pub async fn inspect_ds4_hid(
+    state: State<'_, AppState>,
+    device_id: String,
+) -> AppResult<HidOutputInfo> {
+    let id = permissions::device_id(&device_id)?.to_string();
+    let controller = state.engine.get_controller(&id)?;
+    if controller.device.model != ControllerModel::DualShock4 {
+        return Err(AppError::new(codes::INVALID_ARGUMENT, "diagnostic réservé aux DualShock 4"));
+    }
+    let transport = controller.device.transport;
+    let (requested_report_id, requested_length) = match transport {
+        Transport::Bluetooth => ("0x11", 78),
+        Transport::Usb => ("0x05", 32),
+        Transport::Unknown => return Err(AppError::new(codes::INVALID_ARGUMENT, "transport inconnu")),
+    };
+
+    #[cfg(windows)]
+    {
+        let (len, error) = blocking(move || {
+            let api = hidapi::HidApi::new().map_err(|e| {
+                AppError::new(codes::DEVICE_UNREADABLE, format!("énumération HID : {e}"))
+            })?;
+            let info = api.device_list()
+                .find(|dev| crate::devices::model::device_id_from_path(dev.path().to_bytes()) == id)
+                .ok_or_else(|| AppError::new(codes::DEVICE_NOT_FOUND, "collection HID introuvable"))?;
+            let result = crate::devices::hid_caps::output_report_byte_length(
+                &info.path().to_string_lossy()
+            );
+            Ok::<_, AppError>(match result {
+                Ok(length) => (Some(length), None),
+                Err(error) => (None, Some(error)),
+            })
+        }).await??;
+        Ok(HidOutputInfo {
+            model: "DualShock 4".into(),
+            transport: format!("{transport:?}"),
+            requested_report_id: requested_report_id.into(),
+            requested_length,
+            windows_output_report_byte_length: len,
+            windows_caps_error: error,
+        })
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = id;
+        Err(AppError::new(codes::DEVICE_UNREADABLE, "diagnostic réservé à Windows"))
+    }
+}
+
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> AppSettings {
     state.engine.get_settings()

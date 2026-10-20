@@ -200,19 +200,35 @@ fn spawn_reader(
             let (tx, rx) = mpsc::sync_channel(2);
             rumble.register(id.clone(), tx);
             let mut rumble_deadline: Option<Instant> = None;
+            let mut active_reply: Option<mpsc::Sender<crate::error::AppResult<()>>> = None;
             let mut buf = [0u8; 128];
             let mut parse_errors: u64 = 0;
             while !stop.load(Ordering::Relaxed) && !global_stop.load(Ordering::Relaxed) {
-                // Toute vibration est limitée dans le temps. Le propriétaire du handle
-                // envoie automatiquement un rapport neutre même si l'UI se ferme.
+                // Une seule voie d'écriture par périphérique : le lecteur HID.
+                // En Bluetooth sur Windows, SetOutputReport privilégie la voie
+                // de contrôle avec acquittement plutôt que WriteFile/interrupt.
+                let send_motors = |right: u8, left: u8| -> crate::error::AppResult<()> {
+                    let packet = build_report(device.transport, right, left)?;
+                    let result = if device.transport == Transport::Bluetooth {
+                        dev.send_output_report(&packet)
+                    } else {
+                        dev.write(&packet).map(|_| ())
+                    };
+                    result.map_err(|e| crate::error::AppError::new(
+                        crate::error::codes::DEVICE_UNREADABLE,
+                        format!("envoi HID : {e}")
+                    ))
+                };
+
                 if rumble_deadline.is_some_and(|deadline| Instant::now() >= deadline) {
-                    if let Ok(output) = build_report(device.transport, 0, 0) {
-                        if let Err(e) = dev.write(&output) {
-                            engine.events().push(Severity::Warning, crate::error::codes::DEVICE_UNREADABLE,
-                                "rumble", &format!("arrêt automatique HID impossible : {e}"));
-                        }
+                    let result = send_motors(0, 0);
+                    if let Err(e) = &result {
+                        engine.events().push(Severity::Warning, e.code, "rumble", &e.detail);
                     }
                     rumble_deadline = None;
+                    if let Some(reply) = active_reply.take() {
+                        let _ = reply.send(result);
+                    }
                 }
                 while let Ok(cmd) = rx.try_recv() {
                     match cmd {
@@ -223,25 +239,24 @@ fn spawn_reader(
                                 )));
                                 continue;
                             }
-                            let result = build_report(device.transport, right, left)
-                                .and_then(|output| dev.write(&output)
-                                    .map(|_| ())
-                                    .map_err(|e| crate::error::AppError::new(
-                                        crate::error::codes::DEVICE_UNREADABLE, format!("écriture HID : {e}")
-                                    )));
-                            if result.is_ok() {
-                                rumble_deadline = Some(Instant::now() + Duration::from_millis(u64::from(duration_ms)));
+                            match send_motors(right, left) {
+                                Ok(()) => {
+                                    rumble_deadline = Some(Instant::now() + Duration::from_millis(u64::from(duration_ms)));
+                                    // Accusé envoyé seulement APRES la commande neutre,
+                                    // pour que l'UI suive la durée demandée.
+                                    active_reply = Some(reply);
+                                }
+                                Err(e) => {
+                                    let _ = reply.send(Err(e));
+                                }
                             }
-                            let _ = reply.send(result);
                         }
                         RumbleCommand::Stop { reply } => {
-                            let result = build_report(device.transport, 0, 0)
-                                .and_then(|output| dev.write(&output)
-                                    .map(|_| ())
-                                    .map_err(|e| crate::error::AppError::new(
-                                        crate::error::codes::DEVICE_UNREADABLE, format!("arrêt HID : {e}")
-                                    )));
+                            let result = send_motors(0, 0);
                             rumble_deadline = None;
+                            if let Some(active) = active_reply.take() {
+                                let _ = active.send(result.clone());
+                            }
                             let _ = reply.send(result);
                         }
                     }
@@ -270,8 +285,18 @@ fn spawn_reader(
             rumble.unregister(&id);
             if rumble_deadline.is_some() {
                 if let Ok(output) = build_report(device.transport, 0, 0) {
-                    let _ = dev.write(&output);
+                    let _ = if device.transport == Transport::Bluetooth {
+                        dev.send_output_report(&output)
+                    } else {
+                        dev.write(&output).map(|_| ())
+                    };
                 }
+            }
+            if let Some(reply) = active_reply.take() {
+                let _ = reply.send(Err(crate::error::AppError::new(
+                    crate::error::codes::DEVICE_UNREADABLE,
+                    "connexion interrompue avant la fin de la vibration",
+                )));
             }
             engine.device_lost(&id);
         })

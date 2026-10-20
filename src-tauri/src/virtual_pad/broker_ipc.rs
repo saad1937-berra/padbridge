@@ -8,7 +8,7 @@ use super::vhf_broker::Report;
 use super::vhf_protocol::{encode, validate_report, REPORT_LEN};
 use super::backend::OutputState;
 
-pub const REQUEST_LEN: usize = 16;
+pub const REQUEST_LEN: usize = 8 + REPORT_LEN;
 pub const RESPONSE_LEN: usize = 8;
 pub const VERSION: u8 = 1;
 const MAGIC: &[u8; 4] = b"PBIP";
@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn malformed_and_reserved_frames_are_rejected() {
         let src = encode_request(Command::Ping);
-        assert_eq!(decode(&src[..15]), Err(ProtocolError::InvalidLength));
+        assert_eq!(decode(&src[..17]), Err(ProtocolError::InvalidLength));
         let mut invalid = src;
         invalid[0] = 0;
         assert_eq!(decode(&invalid), Err(ProtocolError::InvalidMagic));

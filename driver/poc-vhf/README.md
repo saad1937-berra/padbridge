@@ -17,6 +17,9 @@ noyau consommee par XInput, distincte de l'interface HID/DirectInput.
 - `PadBridgeVhf.h` : format binaire ABI de 10 octets + IOCTL prive.
 - `PadBridgeVhf.c` : point d'entree KMDF, interface d'appareil, validation
   stricte des rapports, descripteur HID et appels VHF.
+- `PadBridgeVhf.vcxproj` : projet Visual Studio **KMDF x64** autonome (Debug/Release), lie `VhfKm.lib`. Aucun INF ni deployeur.
+- `build-wdk.ps1` : compile uniquement ce projet avec MSBuild ; aucune installation ou signature.
+
 - `src-tauri/src/virtual_pad/vhf_protocol.rs` : encodeur Rust pur, sans
   ouverture du pilote ni interaction avec Windows. Tests unitaires inclus.
 - `src-tauri/src/virtual_pad/selected_backend.rs` **reste sur
@@ -49,11 +52,25 @@ ne constitue PAS un pilote installable.
 Etapes a realiser **seulement sur un environnement Windows 11 isole,
 avec snapshot et outil de debogage noyau** :
 
-1. Installer Visual Studio + Windows Driver Kit dans l'environnement **de build**.
-   Creer un projet **KMDF Driver, Empty**, ajouter `PadBridgeVhf.c/.h`,
-   inclure `Vhf.h` et lier `VhfKm.lib`. Ne pas installer le pilote.
-2. Compiler pour x64, activer warnings/analyses statiques WDK et corriger
-   toutes les erreurs. Le code n'a **pas encore** ete compile avec le WDK.
+1. Dans l'environnement **de build**, installer Visual Studio avec
+   **Desktop development with C++**, le Windows SDK et le Windows Driver Kit,
+   tous dans une combinaison compatible.
+   - Pour **Visual Studio 2022** : WDK + SDK **26100.6584** (Microsoft).
+   - Pour **Visual Studio 2026** : WDK + SDK **28000.2526** (Microsoft).
+   - Installer egalement le composant d'integration **Windows Driver Kit**
+     dans Visual Studio Installer → Individual components.
+   - Documentation officielle : https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk
+2. Ouvrir `PadBridgeVhf.vcxproj` dans Visual Studio et choisir
+   **Debug | x64 → Build**. Alternativement, depuis PowerShell dans le
+   dossier `driver/poc-vhf` :
+   ```powershell
+   .\\build-wdk.ps1 -Configuration Debug
+   ```
+   La commande **compile uniquement** et ne cree ni package INF signe, ni
+   machine virtuelle, ni pilote actif. Le projet C n'a **pas encore** ete
+   compile avec WDK par nos outils. Si une erreur survient, transmettre
+   les **premieres erreurs** MSBuild (pas besoin de modifier les parametres
+   de securite de Windows).
 3. Preparer ensuite, apres revue, un package INF pour un appareil de test
    **root-enumerated**, avec `vhf` en `LowerFilters`, et un mecanisme
    de signature adapte a la VM. Etudier la compatibilite de ce montage
@@ -74,6 +91,18 @@ avec snapshot et outil de debogage noyau** :
    par `XInputGetState`, verifier l'utilisation reelle de XInput et la
    distribution/signature du pilote. Ne pas appeler un gamepad HID
    « Xbox » avant cette validation.
+
+## Portee du build WDK
+
+Le build generera eventuellement `PadBridgeVhf.sys` **uniquement si le
+code passe la compilation dans ton environnement WDK**. Aucune installation
+automatique n'existe. L'absence d'INF est volontaire tant que le watchdog,
+la gestion PnP et le broker privilegie n'ont pas ete audites. Compiler
+n'implique **ni execution ni chargement en memoire noyau**.
+
+Il faut encore mettre au point la compatibilite du projet `.vcxproj`
+avec la version precise de ton Visual Studio/WDK. Les tests GitHub Actions
+actuels compilent le moteur Rust et Tauri, **pas le code C du pilote**.
 
 ## Validation possible aujourd'hui, sans pilote
 

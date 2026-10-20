@@ -7,25 +7,29 @@
 //!
 //! No SCM installation or driver IOCTL; all input commands are handled by
 //! the dry-run policy, which denies even a well-formed non-neutral report.
-//! A synchronous one-shot proof-of-concept only; do not deploy it as a
-//! production Windows service (there are no timeouts or stop callbacks).
+//! An overlapped one-shot proof-of-concept with cancellation/timeouts; do
+//! not deploy it as a Windows service (no SCM integration or STOP callback).
 
 use std::io;
 use std::mem::size_of;
 use std::ptr;
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, GetLastError, LocalFree, HANDLE, ERROR_PIPE_CONNECTED, INVALID_HANDLE_VALUE,
+    CloseHandle, GetLastError, LocalFree, HANDLE, ERROR_PIPE_CONNECTED, ERROR_IO_PENDING,
+    INVALID_HANDLE_VALUE, WAIT_OBJECT_0,
 };
 use windows_sys::Win32::Security::{SECURITY_ATTRIBUTES};
 use windows_sys::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW;
 use windows_sys::Win32::Storage::FileSystem::{
-    ReadFile, WriteFile, FILE_FLAG_FIRST_PIPE_INSTANCE,
+    ReadFile, WriteFile, FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_FLAG_OVERLAPPED,
 };
 use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe,
     PIPE_READMODE_MESSAGE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_MESSAGE, PIPE_WAIT,
 };
+
+use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
+use windows_sys::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
 
 use super::broker_ipc::{self, REQUEST_LEN};
 use super::broker_auth_windows::verify_last_sender;
@@ -33,6 +37,8 @@ use super::broker_auth_windows::verify_last_sender;
 pub const PIPE_NAME: &str = r"\\.\pipe\PadBridge.Broker.POC.v1";
 // Win32 CreateNamedPipeW open-mode flag, PIPE_ACCESS_DUPLEX.
 const PIPE_ACCESS_DUPLEX: u32 = 0x00000003;
+/// Per-operation bound. The preview is not a production service.
+pub const IO_TIMEOUT_MS: u32 = 2500;
 
 // A user's SID may come ONLY from future privileged provisioning.
 // No names, wildcards, SID aliases or SDDL escape sequences are accepted.
@@ -59,6 +65,14 @@ impl Drop for Descriptor {
         // SAFETY: ConvertStringSecurityDescriptorToSecurityDescriptorW allocates
         // using LocalAlloc; LocalFree is the corresponding deallocator.
         unsafe { LocalFree(self.0); }
+    }
+}
+
+struct IoEvent(HANDLE);
+impl Drop for IoEvent {
+    fn drop(&mut self) {
+        // SAFETY: owns the CreateEventW handle; no OVERLAPPED is pending.
+        unsafe { CloseHandle(self.0); }
     }
 }
 
@@ -104,7 +118,7 @@ impl PreviewPipe {
         let handle = unsafe {
             CreateNamedPipeW(
                 pipe_name.as_ptr(),
-                PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE | FILE_FLAG_OVERLAPPED,
                 PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT |
                     PIPE_REJECT_REMOTE_CLIENTS,
                 1,
@@ -120,35 +134,71 @@ impl PreviewPipe {
         Ok(Self { handle, provisioned_user_sid: provisioned_user_sid.to_owned() })
     }
 
-    /// Handle precisely ONE bounded client message, then disconnect.
-    /// Blocking: not suitable for SCM until cancellation + timeouts exist.
-    /// No command can reach DeviceIoControl in this implementation.
+    /// Handle ONE client within bounded wait times, then disconnect.
+    /// Still not SCM-ready; no cancellation event from the service manager.
     pub fn serve_one_message(&mut self) -> io::Result<()> {
-        // SAFETY: valid server pipe handle. ERROR_PIPE_CONNECTED is allowed
-        // if the client connected between CreateNamedPipe and ConnectNamedPipe.
-        let connected = unsafe { ConnectNamedPipe(self.handle, ptr::null_mut()) };
-        if connected == 0 && unsafe { GetLastError() } != ERROR_PIPE_CONNECTED {
-            return Err(io::Error::last_os_error());
-        }
-
-        // Guarantee the pipe is disconnected even if the request is invalid.
+        // A client may have connected before this overlapped ConnectNamedPipe.
+        self.bounded_io(true, |overlapped, _bytes| unsafe {
+            ConnectNamedPipe(self.handle, overlapped)
+        })?;
         let result = self.read_and_respond();
-        // SAFETY: owned pipe server handle.
+        // SAFETY: all overlapped requests have been drained before disconnect.
         unsafe { DisconnectNamedPipe(self.handle); }
         result
     }
 
-    fn read_and_respond(&mut self) -> io::Result<()> {
-        let mut request = [0u8; REQUEST_LEN];
-        let mut bytes_read = 0u32;
-        // SAFETY: fixed-size writable report buffer, synchronous API.
-        let read_ok = unsafe {
-            ReadFile(self.handle, request.as_mut_ptr().cast(),
-                REQUEST_LEN as u32, &mut bytes_read, ptr::null_mut())
-        };
-        if read_ok == 0 {
+    fn bounded_io(
+        &self,
+        allow_already_connected: bool,
+        action: impl FnOnce(*mut OVERLAPPED, *mut u32) -> i32,
+    ) -> io::Result<u32> {
+        // Manual reset event, unique to this single in-flight request.
+        let event = unsafe { CreateEventW(ptr::null(), 1, 0, ptr::null()) };
+        if event.is_null() {
             return Err(io::Error::last_os_error());
         }
+        let event = IoEvent(event);
+        let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+        overlapped.hEvent = event.0;
+        let mut count = 0u32;
+        let ok = action(&mut overlapped, &mut count);
+        if ok != 0 {
+            return Ok(count);
+        }
+        // SAFETY: GetLastError immediately follows the failed I/O operation.
+        let error = unsafe { GetLastError() };
+        if allow_already_connected && error == ERROR_PIPE_CONNECTED {
+            return Ok(0);
+        }
+        if error != ERROR_IO_PENDING {
+            return Err(io::Error::from_raw_os_error(error as i32));
+        }
+        // The operation is pending; timeout triggers CancelIoEx. Draining
+        // completion before dropping OVERLAPPED + event avoids a UAF race.
+        let wait = unsafe { WaitForSingleObject(event.0, IO_TIMEOUT_MS) };
+        if wait != WAIT_OBJECT_0 {
+            unsafe {
+                CancelIoEx(self.handle, &overlapped);
+                let mut drained = 0u32;
+                GetOverlappedResult(self.handle, &overlapped, &mut drained, 1);
+            }
+            return Err(io::Error::new(io::ErrorKind::TimedOut,
+                "PadBridge IPC operation timed out or was cancelled"));
+        }
+        if unsafe {
+            GetOverlappedResult(self.handle, &overlapped, &mut count, 0)
+        } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(count)
+    }
+
+    fn read_and_respond(&mut self) -> io::Result<()> {
+        let mut request = [0u8; REQUEST_LEN];
+        let bytes_read = self.bounded_io(false, |overlapped, count| unsafe {
+            ReadFile(self.handle, request.as_mut_ptr().cast(),
+                REQUEST_LEN as u32, count, overlapped)
+        })?;
 
         // Never authorize solely based on the pipe DACL or a self-reported frame.
         // Identity is checked AFTER reading the last client message.
@@ -158,15 +208,10 @@ impl PreviewPipe {
             broker_ipc::Status::Unauthorized
         };
         let response = broker_ipc::response(status);
-        let mut bytes_written = 0u32;
-        // SAFETY: response remains alive throughout this synchronous write.
-        let write_ok = unsafe {
+        let bytes_written = self.bounded_io(false, |overlapped, count| unsafe {
             WriteFile(self.handle, response.as_ptr().cast(),
-                response.len() as u32, &mut bytes_written, ptr::null_mut())
-        };
-        if write_ok == 0 {
-            return Err(io::Error::last_os_error());
-        }
+                response.len() as u32, count, overlapped)
+        })?;
         if bytes_written != response.len() as u32 {
             return Err(io::Error::new(io::ErrorKind::WriteZero,
                 "short local IPC response"));

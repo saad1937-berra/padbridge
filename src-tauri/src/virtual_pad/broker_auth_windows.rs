@@ -9,11 +9,11 @@ use windows_sys::Win32::Foundation::{
     CloseHandle, LocalFree, HANDLE, ERROR_INSUFFICIENT_BUFFER,
 };
 use windows_sys::Win32::Security::{
-    GetTokenInformation, OpenThreadToken, RevertToSelf, TokenUser, TOKEN_QUERY, TOKEN_USER,
+    GetTokenInformation, RevertToSelf, TokenUser, TOKEN_QUERY, TOKEN_USER,
 };
 use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
 use windows_sys::Win32::System::Pipes::ImpersonateNamedPipeClient;
-use windows_sys::Win32::System::Threading::GetCurrentThread;
+use windows_sys::Win32::System::Threading::{GetCurrentThread, OpenThreadToken};
 
 use super::broker_pipe_windows::is_numeric_sid;
 

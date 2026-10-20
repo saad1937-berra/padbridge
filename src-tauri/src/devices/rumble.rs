@@ -60,6 +60,31 @@ pub fn build_report(transport: Transport, right: u8, left: u8) -> AppResult<Vec<
     }
 }
 
+/// Le rapport DS4 Bluetooth logique fait 78 octets, CRC compris.
+/// HidD_SetOutputReport, sous Windows, attend cependant le tampon déclaré dans
+/// HIDP_CAPS.OutputReportByteLength (547 octets sur la DS4 testée).
+/// IMPORTANT : le CRC reste aux octets 74..78, puis seulement on ajoute des zéros.
+pub fn pad_windows_bt_output(mut report: Vec<u8>, output_cap: Option<u16>) -> AppResult<Vec<u8>> {
+    if report.len() != 78 || report[0] != 0x11 {
+        return Err(AppError::new(codes::INVALID_ARGUMENT, "rapport Bluetooth DS4 invalide"));
+    }
+    let cap = usize::from(output_cap.ok_or_else(|| {
+        AppError::new(
+            codes::DEVICE_UNREADABLE,
+            "taille de sortie HID Windows indisponible (inspection nécessaire)",
+        )
+    })?);
+    // Refuser toute capacité incohérente plutôt que de transmettre un tampon arbitraire.
+    if !(78..=1024).contains(&cap) {
+        return Err(AppError::new(
+            codes::DEVICE_UNREADABLE,
+            format!("taille de sortie HID Windows incompatible : {cap} octets"),
+        ));
+    }
+    report.resize(cap, 0);
+    Ok(report)
+}
+
 // CRC32 IEEE réfléchi, données = préfixe Bluetooth 0xA2 + rapport HID sans CRC.
 // Implémentation locale : aucune dépendance de calcul CRC.
 fn bluetooth_crc(payload: &[u8]) -> u32 {
@@ -133,6 +158,28 @@ mod tests {
         assert_eq!(stopped.len(), 78);
         assert_eq!(&stopped[6..8], &[0, 0]);
         assert_ne!(active[74..78], stopped[74..78]);
+    }
+
+    #[test]
+    fn windows_bt_padding_keeps_crc_in_logical_report() {
+        let logical = build_report(Transport::Bluetooth, 24, 42).unwrap();
+        let padded = pad_windows_bt_output(logical.clone(), Some(547)).unwrap();
+        assert_eq!(logical.len(), 78);
+        assert_eq!(padded.len(), 547);
+        assert_eq!(&padded[..78], &logical);
+        assert!(padded[78..].iter().all(|b| *b == 0));
+        let crc = u32::from_le_bytes(padded[74..78].try_into().unwrap());
+        assert_eq!(crc, bluetooth_crc(&logical[..74]));
+    }
+
+    #[test]
+    fn windows_bt_padding_rejects_invalid_caps() {
+        let logical = build_report(Transport::Bluetooth, 20, 20).unwrap();
+        assert!(pad_windows_bt_output(logical.clone(), None).is_err());
+        assert!(pad_windows_bt_output(logical.clone(), Some(77)).is_err());
+        assert!(pad_windows_bt_output(logical.clone(), Some(1025)).is_err());
+        assert_eq!(pad_windows_bt_output(logical.clone(), Some(78)).unwrap(), logical);
+        assert!(pad_windows_bt_output(vec![0x11; 20], Some(547)).is_err());
     }
 
     #[test]

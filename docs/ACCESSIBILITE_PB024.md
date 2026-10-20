@@ -1,6 +1,6 @@
 # PB-024 — Accessibilité de l'interface PadBridge
 
-Statut : **premiers tests clavier, thèmes standards et contraste élevé Windows validés par l'utilisateur sur Windows 11 (20/10/2026) ; vérifications Narrateur/NVDA, zoom et audit restant à effectuer**. Cet ensemble de modifications ne constitue pas une certification WCAG 2.2 AA.
+Statut : **premiers tests clavier, thèmes standards et contraste élevé Windows validés par l'utilisateur sur Windows 11 (20/10/2026) ; vérifications de zoom, audit complet et éventuellement NVDA restant à effectuer**. Cet ensemble de modifications ne constitue pas une certification WCAG 2.2 AA.
 
 ## Principes
 
@@ -28,11 +28,12 @@ Réaliser ces étapes sans toucher aux pilotes Bluetooth et **sans exécuter de 
 - [ ] **A08 — Export.** Dans Diagnostics, ouvrir l'aperçu, parcourir le texte au clavier, puis confirmer que l'export n'est possible qu'après consentement. Annuler sans exporter.
 - [x] **A09a — Thèmes standards.** Les affichages Clair, Sombre et « Suivre le système » sont jugés corrects par l'utilisateur sur Windows 11 (20/10/2026).
 - [x] **A09b — Contraste élevé.** L'utilisateur confirme que PadBridge demeure lisible sous un thème de contraste Windows (20/10/2026). Contrôle visuel manuel, sans mesure automatisée de contrastes WCAG.
+- [x] **A09c — Narrateur Windows.** L'utilisateur confirme que Narrateur annonce les titres des pages et les noms des boutons lors de la navigation (20/10/2026). Un audit exhaustif reste à faire.
 - [ ] **A10 — Zoom.** Avec l'agrandissement Windows ou le zoom de WebView si disponible, vérifier l'absence de perte d'actions essentielles. La navigation doit pouvoir s'afficher horizontalement sur une largeur réduite.
 - [ ] **A11 — T14.** Confirmer que les commandes de vibration et d'arrêt sont désactivées, mais que l'inspection « sans vibration » est accessible.
 - [ ] **A12 — Quitter.** Quitter PadBridge par la zone de notification, puis confirmer que la manette répond dans `joy.cpl`.
 
-**Retour de recette — 20 octobre 2026 :** l'utilisateur a confirmé « ça marche » après la consigne de vérifier le saut au contenu, le focus lors de la navigation et le bouton d'annonce des touches. Le même jour, il a confirmé que les trois thèmes standards s'affichent correctement et que l'interface reste lisible en contraste élevé Windows. Les autres scénarios ci-dessus n'ont pas été vérifiés explicitement ; l'efficacité des annonces avec un lecteur d'écran n'est pas encore établie.
+**Retour de recette — 20 octobre 2026 :** l'utilisateur a confirmé « ça marche » après la consigne de vérifier le saut au contenu, le focus lors de la navigation et le bouton d'annonce des touches. Le même jour, il a confirmé que les trois thèmes standards s'affichent correctement et que l'interface reste lisible en contraste élevé Windows. Les autres scénarios ci-dessus n'ont pas été vérifiés explicitement ; le fonctionnement de Narrateur sur les titres et les boutons a été confirmé, mais les autres annonces n'ont pas été entièrement auditées.
 
 ## Points non démontrés par les tests automatiques
 

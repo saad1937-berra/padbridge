@@ -69,9 +69,6 @@ static UCHAR PbReportDescriptor[] = {
 
 // Toutes les operations VHF, y compris les callbacks d'arret, sont
 // serialisees avec un verrou KMDF PASSIVE_LEVEL.
-#define PB_WATCHDOG_INTERVAL_MS 200u
-#define PB_WATCHDOG_TIMEOUT_MS 800u
-
 typedef struct _PB_DEVICE_CONTEXT {
     VHFHANDLE VhfHandle;
     WDFWAITLOCK ReportLock;

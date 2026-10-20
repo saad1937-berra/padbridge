@@ -8,7 +8,7 @@ export function Page({ title, subtitle, children }: { title: string; subtitle?: 
   return (
     <section className="flex flex-col gap-4">
       <header>
-        <h1 className="m-0 text-xl font-semibold">{title}</h1>
+        <h1 id="page-title" tabIndex={-1} className="m-0 text-xl font-semibold">{title}</h1>
         {subtitle && <p className="muted m-0 mt-1">{subtitle}</p>}
       </header>
       {children}

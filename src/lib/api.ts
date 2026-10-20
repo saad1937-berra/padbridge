@@ -33,6 +33,7 @@ export interface Api {
   stopInputTest(): Promise<void>;
   testDs4Rumble(deviceId: string, intensity: number, durationMs: number): Promise<void>;
   stopDs4Rumble(deviceId: string): Promise<void>;
+  inspectDs4Hid(deviceId: string): Promise<HidOutputInfo>;
   analyzeStickDrift(samples: DriftSample[]): Promise<DriftReport>;
   validateProfile(profile: Profile): Promise<ValidationReport>;
   saveProfile(profile: Profile): Promise<SaveOutcome>;
@@ -57,6 +58,7 @@ const tauriApi: Api = {
   stopInputTest: () => call("stop_input_test"),
   testDs4Rumble: (deviceId, intensity, durationMs) => call("test_ds4_rumble", { deviceId, intensity, durationMs }),
   stopDs4Rumble: (deviceId) => call("stop_ds4_rumble", { deviceId }),
+  inspectDs4Hid: (deviceId) => call("inspect_ds4_hid", { deviceId }),
   analyzeStickDrift: (samples) => call("analyze_stick_drift", { samples }),
   validateProfile: (profile) => call("validate_profile", { profile }),
   saveProfile: (profile) => call("save_profile", { profile }),

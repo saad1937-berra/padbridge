@@ -31,7 +31,7 @@ pub fn build_report(transport: Transport, right: u8, left: u8) -> AppResult<Vec<
         Transport::Bluetooth => {
             let mut output = vec![0u8; 78];
             output[0] = 0x11;
-            output[1] = 0xC0; // trame Bluetooth HID + CRC ; bits d'intervalle laissés à 0
+            output[1] = 0xC4; // Bluetooth HID + CRC, intervalle de rapports 4 ms (DS4)
             output[3] = 0x01; // uniquement les moteurs ; ne pas modifier les LED
             output[6] = right; // moteur faible/rapide
             output[7] = left;  // moteur fort/lent
@@ -117,7 +117,7 @@ mod tests {
     fn bt_layout_crc_and_idle_frame() {
         let active = build_report(Transport::Bluetooth, 30, 80).unwrap();
         assert_eq!(active.len(), 78);
-        assert_eq!(&active[..8], &[0x11, 0xC0, 0, 1, 0, 0, 30, 80]);
+        assert_eq!(&active[..8], &[0x11, 0xC4, 0, 1, 0, 0, 30, 80]);
         assert_eq!(u32::from_le_bytes(active[74..78].try_into().unwrap()), bluetooth_crc(&active[..74]));
         let stopped = build_report(Transport::Bluetooth, 0, 0).unwrap();
         assert_eq!(stopped.len(), 78);

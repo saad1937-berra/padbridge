@@ -12,14 +12,16 @@ Cette procédure valide le logiciel **sans VM ni installation de pilote expérim
 
 L'erreur `PB-E202 : Paramètre incorrect (os error 87)` persiste malgré le tampon de 547 octets déclaré par Windows avec `HidD_SetOutputReport` (méthode de contrôle). Le correctif suivant utilise **`WriteFile` via `HidDevice::write`** (voie de sortie HID), toujours avec le rapport Bluetooth 0x11 de 78 octets, son CRC aux octets 74–77 et le tampon complété à la longueur Windows. Vérifier la CI et effectuer **un seul essai** à 20 % / 1 seconde, relever si Windows renvoie une erreur et si la vibration est physiquement ressentie. Un retour positif de `WriteFile` ne démontre pas que la manette a reçu la commande ; des adaptateurs Bluetooth peuvent accepter silencieusement un rapport sans livraison. Après un retour positif de `WriteFile` sans vibration physique, les flags du rapport ont été alignés sur la séquence rumble-only de SDL : `0x11 0xC4 0x00 0x01 0x00 0x00 <right> <left>`, CRC calculé sur les 74 premiers octets. Refaire au maximum un test bref à faible intensité, puis s'arrêter si l'effet reste absent. Ne pas augmenter l'intensité. Vérifier séparément que les moteurs fonctionnent dans un jeu connu ; cette vérification n'impose aucun logiciel pilote.
 
-## PB-025 — Barre système Windows (à tester sur le PC)
-- [ ] Démarrer PadBridge : l'icône apparaît dans la zone de notification Windows (parfois sous « Afficher les icônes cachées »).
-- [ ] Clic droit → « Masquer PadBridge » : fenêtre cachée, processus toujours actif.
-- [ ] Clic gauche sur l'icône : fenêtre réaffichée et focalisée.
-- [ ] Clic droit → « Quitter PadBridge » : processus arrêté, lecteur HID arrêté et manette libérée.
+## PB-025 — Barre système Windows (validation utilisateur : 20 octobre 2026)
+- [x] Démarrer PadBridge : l'icône apparaît dans la zone de notification Windows (parfois sous « Afficher les icônes cachées »).
+- [x] Clic droit → « Masquer PadBridge » : fenêtre cachée, processus toujours actif.
+- [x] Clic gauche sur l'icône : fenêtre réaffichée et focalisée.
+- [x] Clic droit → « Quitter PadBridge » : processus arrêté, lecteur HID arrêté et manette libérée.
 - [ ] La croix de la fenêtre **quitte** l'application comme avant : aucun masquage automatique.
-- [ ] Après fermeture, les boutons de la manette répondent dans `joy.cpl` sans PadBridge ; confirmer avant de relancer un jeu.
+- [x] Après fermeture, les boutons de la manette répondent dans `joy.cpl` sans PadBridge ; confirmer avant de relancer un jeu.
 - [ ] Aucune nouvelle requête d'autorisation et aucun pilote ajouté.
+
+> Retour utilisateur : essai PB-025 annoncé réussi sur Windows 11. Les cases ci-dessus reflètent la recette demandée (sans télémétrie ni preuve instrumentée). La fermeture par × et l'absence de demandes d'autorisation restent à vérifier séparément.
 
 ## T14 — Test de vibration DualShock 4
 

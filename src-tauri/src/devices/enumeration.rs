@@ -5,7 +5,7 @@
 use super::model::{device_id_from_path, ControllerDevice, ControllerModel, Transport, SONY_VENDOR_ID};
 use crate::diagnostics::events::Severity;
 use crate::engine::Engine;
-use crate::devices::rumble::{build_report, RumbleCommand, RumbleRegistry};
+use crate::devices::rumble::{build_report, pad_windows_bt_output, RumbleCommand, RumbleRegistry};
 use hidapi::{BusType, HidApi, HidDevice};
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -126,6 +126,26 @@ fn monitor_loop(engine: Arc<Engine>, stop: Arc<AtomicBool>, rumble: Arc<RumbleRe
                 }
                 match api.open_path(&path) {
                     Ok(dev) => {
+                        // Windows attend un tampon HIDP_CAPS.OutputReportByteLength pour
+                        // HidD_SetOutputReport, même si le rapport DS4 0x11 est plus court.
+                        let windows_bt_output_cap = if device.model == ControllerModel::DualShock4
+                            && device.transport == Transport::Bluetooth
+                        {
+                            match crate::devices::hid_caps::output_report_byte_length(&path.to_string_lossy()) {
+                                Ok(cap) => Some(cap),
+                                Err(e) => {
+                                    engine.events().push(
+                                        Severity::Warning,
+                                        crate::error::codes::DEVICE_UNREADABLE,
+                                        "rumble",
+                                        &format!("capacités HID Windows indisponibles : {e}"),
+                                    );
+                                    None
+                                }
+                            }
+                        } else {
+                            None
+                        };
                         engine.device_connected(device.clone(), true);
                         let reader_stop = Arc::new(AtomicBool::new(false));
                         let handle = spawn_reader(
@@ -136,6 +156,7 @@ fn monitor_loop(engine: Arc<Engine>, stop: Arc<AtomicBool>, rumble: Arc<RumbleRe
                             reader_stop.clone(),
                             stop.clone(),
                             rumble.clone(),
+                            windows_bt_output_cap,
                         );
                         tracked.insert(id, Tracked::Reading { stop: reader_stop, handle });
                     }
@@ -177,6 +198,7 @@ fn spawn_reader(
     stop: Arc<AtomicBool>,
     global_stop: Arc<AtomicBool>,
     rumble: Arc<RumbleRegistry>,
+    windows_bt_output_cap: Option<u16>,
 ) -> JoinHandle<()> {
     thread::Builder::new()
         .name("padbridge-hid-reader".into())
@@ -210,7 +232,8 @@ fn spawn_reader(
                 let send_motors = |right: u8, left: u8| -> crate::error::AppResult<()> {
                     let packet = build_report(device.transport, right, left)?;
                     let result = if device.transport == Transport::Bluetooth {
-                        dev.send_output_report(&packet)
+                        let padded = pad_windows_bt_output(packet, windows_bt_output_cap)?;
+                        dev.send_output_report(&padded)
                     } else {
                         dev.write(&packet).map(|_| ())
                     };
@@ -285,11 +308,13 @@ fn spawn_reader(
             rumble.unregister(&id);
             if rumble_deadline.is_some() {
                 if let Ok(output) = build_report(device.transport, 0, 0) {
-                    let _ = if device.transport == Transport::Bluetooth {
-                        dev.send_output_report(&output)
+                    if device.transport == Transport::Bluetooth {
+                        if let Ok(padded) = pad_windows_bt_output(output, windows_bt_output_cap) {
+                            let _ = dev.send_output_report(&padded);
+                        }
                     } else {
-                        dev.write(&output).map(|_| ())
-                    };
+                        let _ = dev.write(&output);
+                    }
                 }
             }
             if let Some(reply) = active_reply.take() {

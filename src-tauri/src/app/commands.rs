@@ -152,7 +152,7 @@ pub fn analyze_stick_drift(samples: Vec<DriftSample>) -> AppResult<DriftReport> 
     drift::analyze(&samples)
 }
 
-/// Impulsion manuelle DualShock 4 : 10-60 % et 100-500 ms, aucune vibration persistante.
+/// Impulsion manuelle DualShock 4 : 10–60 %, 500–2000 ms, et arrêt HID vérifié.
 #[tauri::command]
 pub async fn test_ds4_rumble(
     state: State<'_, AppState>,
@@ -168,8 +168,8 @@ pub async fn test_ds4_rumble(
     {
         return Err(AppError::new(codes::DEVICE_UNREADABLE, "une DualShock 4 lisible doit être connectée"));
     }
-    if !(10..=60).contains(&intensity) || !(100..=500).contains(&duration_ms) {
-        return Err(AppError::new(codes::INVALID_ARGUMENT, "intensité 10–60 %, durée 100–500 ms"));
+    if !(10..=60).contains(&intensity) || !(500..=2000).contains(&duration_ms) {
+        return Err(AppError::new(codes::INVALID_ARGUMENT, "intensité 10–60 %, durée 500–2000 ms"));
     }
     let rumble = state.rumble.clone();
     blocking(move || rumble.pulse(&id, intensity * 2, intensity * 3, duration_ms)).await?

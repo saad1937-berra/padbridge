@@ -9,6 +9,10 @@ pub mod selected_backend;
 pub mod vhf_protocol;
 // Coeur de broker testable, inactif tant qu'aucun service privilegie n'existe.
 pub mod vhf_broker;
+// Protocol v1 IPC (aucun acces materiel, tests deterministes).
+pub mod broker_ipc;
+#[cfg(all(windows, feature = "broker-service-poc"))]
+pub mod broker_pipe_windows;
 #[cfg(all(windows, feature = "broker-poc"))]
 pub mod vhf_broker_windows;
 

@@ -8,6 +8,10 @@ Cette procédure valide le logiciel **sans VM ni installation de pilote expérim
 - Aucun pilote virtuel installé par PadBridge : `selected_backend.rs` utilise `NullBackend`.
 - Ne pas considérer le fonctionnement d'un jeu sans PadBridge comme la preuve que PadBridge crée une manette virtuelle.
 
+### Diagnostic Windows HID (erreur 87)
+
+Si une impulsion retourne `PB-E202 : Paramètre incorrect (os error 87)`, utiliser le bouton **Examiner la sortie HID (sans vibration)**. Sous Windows, la taille du tampon passé à `HidD_SetOutputReport` est celle de `HIDP_CAPS.OutputReportByteLength` ; le rapport DS4 Bluetooth 0x11 lui-même ne contient que 78 octets. PadBridge complète le tampon avec des zéros après le CRC (aux octets 74–77), sans recalculer le CRC sur le tampon complété. Vérifier d'abord la CI Windows. Ne refaire qu'un essai 20 % / 1 seconde et collecter le message exact ; si l'erreur persiste, ne pas multiplier les essais.
+
 ## T14 — Test de vibration DualShock 4
 
 - [ ] Depuis la branche de travail, terminer une compilation Windows sans erreur.

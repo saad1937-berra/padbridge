@@ -195,8 +195,8 @@ NTSTATUS PbEvtDeviceAdd(WDFDRIVER Driver, PWDFDEVICE_INIT DeviceInit)
         WdfDeviceWdmGetDeviceObject(device),
         (USHORT)sizeof(PbReportDescriptor),
         PbReportDescriptor);
-    vhfConfig.VendorID = 0x1209;     // Prototype seulement ; attribution de PID a verifier
-    vhfConfig.ProductID = 0x0001;    // Ne pas distribuer sans PID reserve
+    // Aucun VID/PID d'un tiers ne doit etre usurpe. Utiliser l'absence
+    // de valeurs explicites jusqu'a l'attribution d'identifiants legitimes.
     vhfConfig.VersionNumber = 0x0001;
 
     status = VhfCreate(&vhfConfig, &context->VhfHandle);

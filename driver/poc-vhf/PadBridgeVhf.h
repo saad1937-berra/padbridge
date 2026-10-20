@@ -14,6 +14,9 @@ EXTERN_C const GUID GUID_DEVINTERFACE_PADBRIDGE_VHF;
 #define PB_VHF_REPORT_ID 0x01
 #define PB_VHF_HAT_NEUTRAL 0x08
 #define PB_VHF_VALID_BUTTONS 0x07FFu
+// Keep in sync with Rust vhf_protocol.rs. 200ms tick, 800ms inactivity timeout.
+#define PB_WATCHDOG_INTERVAL_MS 200u
+#define PB_WATCHDOG_TIMEOUT_MS 800u
 #define PB_VHF_IOCTL_SUBMIT CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_WRITE_DATA)
 
 #pragma pack(push, 1)

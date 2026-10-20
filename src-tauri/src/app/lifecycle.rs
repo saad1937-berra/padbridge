@@ -47,6 +47,11 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let retention = SettingsStore::new(data_dir.join("settings.json")).load().log_retention_days;
     let log_guard = init_logging(&data_dir.join("logs"), retention);
 
+    // Faire échouer proprement l'initialisation si la zone de notification ne peut
+    // pas être créée, avant de démarrer les lecteurs et threads HID.
+    #[cfg(windows)]
+    super::tray::install(app)?;
+
     let engine = Arc::new(Engine::new(&data_dir, selected_backend::select())?);
     let stop = Arc::new(AtomicBool::new(false));
     let test_sub: ui_events::SharedTestSub = Arc::new(Mutex::new(None));
@@ -56,10 +61,6 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let monitor = Mutex::new(Some(crate::devices::enumeration::spawn(engine.clone(), stop.clone(), rumble.clone())));
 
     ui_events::spawn(app.handle().clone(), engine.clone(), test_sub.clone(), stop.clone());
-
-    // Installer l'icône après initialisation du moteur. Aucun masquage automatique.
-    #[cfg(windows)]
-    super::tray::install(app)?;
 
     app.manage(AppState { engine, test_sub, rumble });
     app.manage(Runtime {

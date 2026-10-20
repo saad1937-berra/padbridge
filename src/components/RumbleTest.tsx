@@ -1,6 +1,6 @@
 // Test HID manuel DualShock 4, indépendant des vibrations émises par les jeux.
 // Durée bornée côté Rust, arrêt explicite en quittant l'écran.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, toApiError } from "../lib/api";
 import type { ControllerDevice, HidOutputInfo } from "../lib/types";
 
@@ -12,12 +12,13 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
   const [error, setError] = useState<string | null>(null);
   const [inspection, setInspection] = useState<HidOutputInfo | null>(null);
   const [inspecting, setInspecting] = useState(false);
+  const activePulse = useRef(false);
   const supported = device.model === "dualshock4" && (device.transport === "bluetooth" || device.transport === "usb");
   const enabled = supported && connected;
 
   useEffect(() => {
     const id = device.deviceId;
-    return () => { if (supported) void api.stopDs4Rumble(id).catch(() => undefined); };
+    return () => { if (supported && activePulse.current) void api.stopDs4Rumble(id).catch(() => undefined); };
   }, [device.deviceId, supported]);
 
   const inspect = async () => {
@@ -35,6 +36,7 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
   };
 
   const run = async () => {
+    activePulse.current = true;
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -45,6 +47,7 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
       const err = toApiError(e);
       setError(`${err.code} : ${err.detail}`);
     } finally {
+      activePulse.current = false;
       setBusy(false);
     }
   };
@@ -54,6 +57,7 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
     setError(null);
     try {
       await api.stopDs4Rumble(device.deviceId);
+      activePulse.current = false;
       setMessage("Commande d'arrêt envoyée.");
     } catch (e) {
       const err = toApiError(e);

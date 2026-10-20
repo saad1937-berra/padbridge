@@ -139,7 +139,7 @@ export function TestScreen({
               </tr>
             </tbody>
           </table>
-          <p className="m-0" aria-live="polite">
+          <p className="m-0">
             <strong>Actions calculées :</strong>{" "}
             {out?.buttons.length ? out.buttons.map((b) => xButtonLabel[b]).join(", ") : <span className="muted">aucune</span>}
           </p>

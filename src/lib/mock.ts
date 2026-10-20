@@ -123,7 +123,6 @@ export const mockApi: Api = {
   startInputTest: async (id, p) => { testDevice = id; preview = p ?? null; },
   stopInputTest: async () => { testDevice = null; preview = null; },
   analyzeStickDrift: async () => { throw { code: "PB-E002", detail: "Le diagnostic de drift réel nécessite PadBridge Tauri et une manette physique." }; },
-  analyzeStickDrift: async () => { throw { code: "PB-E002", detail: "Le diagnostic de drift réel nécessite PadBridge Tauri et une manette physique." }; },
   validateProfile: async (p) => validate(p),
   saveProfile: async (p) => {
     const report = validate(p);

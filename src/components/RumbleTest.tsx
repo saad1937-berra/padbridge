@@ -6,7 +6,7 @@ import type { ControllerDevice } from "../lib/types";
 
 export function RumbleTest({ device, connected }: { device: ControllerDevice; connected: boolean }) {
   const [intensity, setIntensity] = useState(20);
-  const [duration, setDuration] = useState(200);
+  const [duration, setDuration] = useState(1000);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
     setMessage(null);
     try {
       await api.testDs4Rumble(device.deviceId, intensity, duration);
-      setMessage("Commande HID écrite. La manette devrait vibrer brièvement : confirme-le physiquement.");
+      setMessage(`Séquence HID terminée (${(duration / 1000).toLocaleString("fr-FR")} s demandée). Windows a accepté les commandes de démarrage et d’arrêt ; confirme si tu as senti une vibration.`);
     } catch (e) {
       const err = toApiError(e);
       setError(`${err.code} : ${err.detail}`);
@@ -64,23 +64,23 @@ export function RumbleTest({ device, connected }: { device: ControllerDevice; co
               onChange={(e) => setIntensity(Number(e.target.value))} disabled={!enabled || busy} />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="flex justify-between"><span>Durée de l'impulsion</span><strong>{duration} ms</strong></span>
-            <input type="range" min={100} max={500} step={50} value={duration}
+            <span className="flex justify-between"><span>Durée demandée</span><strong>{(duration / 1000).toLocaleString("fr-FR")} seconde(s)</strong></span>
+            <input type="range" min={500} max={2000} step={250} value={duration}
               onChange={(e) => setDuration(Number(e.target.value))} disabled={!enabled || busy} />
           </label>
           <div className="flex flex-wrap gap-2">
             <button className="btn btn-primary" disabled={!enabled || busy} onClick={() => void run()}>
-              Tester la vibration
+              {busy ? "Impulsion en cours…" : "Tester la vibration"}
             </button>
-            <button className="btn" disabled={!enabled || busy} onClick={() => void stop()}>
+            <button className="btn" disabled={!enabled} onClick={() => void stop()}>
               Arrêter
             </button>
           </div>
           {message && <div className="notice notice-ok" role="status">{message}</div>}
           {error && <div className="notice notice-err" role="alert">{error}</div>}
           <p className="muted m-0 text-xs">
-            Test limité à 500 ms par commande, et à 60 % d'intensité dans l'interface.
-            Un arrêt automatique est envoyé depuis Rust. Arrête le test en cas de comportement anormal.
+            Test limité à 2 secondes par commande, et à 60 % d'intensité dans l'interface.
+            Le moteur Rust envoie l'arrêt automatiquement à la fin de la durée choisie, avec une légère marge liée au traitement HID. Clique sur Arrêter en cas de comportement anormal.
             Le succès de l'écriture HID ne garantit pas encore que Windows ou la manette applique la vibration.
           </p>
         </>

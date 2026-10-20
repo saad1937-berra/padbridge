@@ -52,7 +52,7 @@ src-tauri/
 | PB-002/003 installation, réparation, désinstallation | NSIS par utilisateur ; pas de pilote installé par l'app |
 | PB-004 niveaux de prise en charge | Fait (écran Compatibilité) |
 | PB-005 à PB-010 détection, USB/BT, batterie, perte | Fait, **à valider sur matériel** (POC A) |
-| PB-011 à PB-013 tests touches/axes, calibration | Fait, aperçu en direct |
+| PB-011 à PB-013 tests touches/axes, calibration | Fait : aperçu en direct et parcours guidé de 24 commandes HID brutes (lecture seule, recette Windows à effectuer) |
 | PB-014/015 mapping simple, profils | Fait (dupliquer, renommer, réinitialiser, corruption → profil sûr) |
 | PB-016 mode natif | Fait |
 | PB-017/018 XInput + cycle de vie | Logique du moteur faite et testée avec un backend factice ; **aucun backend réel** |
@@ -79,6 +79,12 @@ Dans **Test de la manette → Vibrations**, le bouton « Tester la vibration » 
 **Ce n'est pas du retour de force en jeu :** PadBridge n'intercepte pas les effets des jeux et le mode natif reste inchangé. Le support DualSense nécessitera un protocole spécifique distinct.
 
 **Diagnostic PB-E202 / erreur Windows 87 :** le rapport Bluetooth DS4 logique reste de 78 octets (CRC aux octets 74–77) et le tampon Windows utilise la longueur de `HIDP_CAPS.OutputReportByteLength` (547 octets sur la manette testée). Malgré cela, `HidD_SetOutputReport` renvoie l'erreur 87 sur le matériel observé. Le moteur utilise désormais `WriteFile` (`hidapi::HidDevice::write`) avec le rapport Chromium et une durée limitée. Sous certaines combinaisons Bluetooth Windows, `WriteFile` peut accepter un rapport sans que l'appareil le reçoive : seule une vibration physique confirme le succès. **Après un essai sans vibration malgré une écriture acceptée**, nous avons remplacé les indicateurs Bluetooth du rapport `0x11` par le format minimal officiel documenté dans `SDL_hidapi_ps4.c` : octet 1 = `0xC4`, octet 3 = `0x01` (moteurs seuls), moteurs aux octets 6 et 7, CRC aux octets 74–77. Les anciens octets additionnels empruntés à un exemple Chromium sont supprimés. Cette modification est encore **à valider sur matériel**, sans garantie de livraison des paquets Bluetooth. **Aucun pilote tiers n'est nécessaire** pour ce test. En cas d'échec, conserver le code erreur et ne pas répéter les impulsions sans nouveau diagnostic.
+
+## Parcours guidé des entrées HID — POC A
+
+Dans **Test de la manette → Vérification guidée**, démarrer volontairement un parcours de **24 contrôles de base** : 14 boutons, 8 directions des joysticks, 2 gâchettes. Chaque élément n'est marqué « Vérifiée » qu'après observation d'un nouvel échantillon HID brut pendant la session. Le seuil de déclenchement analogique est de 70 % de la course. L'avancement peut être arrêté et remis à zéro ; il n'est pas stocké ni exporté. L'interface exclut les boutons PS, pavé tactile et micro du parcours de base.
+
+**Limites :** les relâchements, l'exactitude des axes, la batterie, l'appairage initial et la reconnexion restent à évaluer séparément. Ce parcours ne modifie aucun profil, ne crée aucune manette virtuelle et ne sollicite pas les moteurs de vibration. Il ne prouve donc pas que les jeux reçoivent un remapping. La procédure de recette est dans `docs/VALIDATION_WINDOWS.md`.
 
 ## Diagnostic de dérive (drift) — sans pilote supplémentaire
 

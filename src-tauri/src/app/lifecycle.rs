@@ -91,6 +91,7 @@ pub fn run() {
             commands::get_controller_state,
             commands::start_input_test,
             commands::stop_input_test,
+            commands::inspect_ds4_hid,
             commands::test_ds4_rumble,
             commands::stop_ds4_rumble,
             commands::validate_profile,

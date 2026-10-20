@@ -17,6 +17,8 @@
     <RootNamespace>PadBridgeVhf</RootNamespace>
     <Keyword>Win32Proj</Keyword>
     <KMDF_VERSION_MAJOR>1</KMDF_VERSION_MAJOR>
+    <!-- Pas de certificat de test cree automatiquement par Visual Studio. -->
+    <SignMode>Off</SignMode>
     <Configuration Condition="'$(Configuration)'==''">Debug</Configuration>
     <Platform Condition="'$(Platform)'==''">x64</Platform>
   </PropertyGroup>

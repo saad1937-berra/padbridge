@@ -77,7 +77,7 @@ Dans **Test de la manette → Vibrations**, le bouton « Tester la vibration » 
 
 **Ce n'est pas du retour de force en jeu :** PadBridge n'intercepte pas les effets des jeux et le mode natif reste inchangé. Le support DualSense nécessitera un protocole spécifique distinct.
 
-**Correctif du code PB-E202 / erreur Windows 87 :** en Bluetooth, le rapport DS4 logique reste de 78 octets (CRC aux octets 74–77), mais le tampon remis à `HidD_SetOutputReport` est maintenant complété à la longueur déclarée dans `HIDP_CAPS.OutputReportByteLength` (547 octets sur le matériel testé). PadBridge rejette les longueurs indisponibles ou incohérentes. Cela corrige la taille fournie à l'API Windows, mais ne constitue pas une validation de la vibration physique.
+**Diagnostic PB-E202 / erreur Windows 87 :** le rapport Bluetooth DS4 logique reste de 78 octets (CRC aux octets 74–77) et le tampon Windows utilise la longueur de `HIDP_CAPS.OutputReportByteLength` (547 octets sur la manette testée). Malgré cela, `HidD_SetOutputReport` renvoie l'erreur 87 sur le matériel observé. Le moteur utilise désormais `WriteFile` (`hidapi::HidDevice::write`) avec le rapport Chromium et une durée limitée. Sous certaines combinaisons Bluetooth Windows, `WriteFile` peut accepter un rapport sans que l'appareil le reçoive : seule une vibration physique confirme le succès. **Aucun pilote tiers n'est nécessaire** pour ce test. En cas d'échec, conserver le code erreur et ne pas répéter les impulsions sans nouveau diagnostic.
 
 ## Diagnostic de dérive (drift) — sans pilote supplémentaire
 

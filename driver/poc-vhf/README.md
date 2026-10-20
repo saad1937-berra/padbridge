@@ -17,7 +17,7 @@ noyau consommee par XInput, distincte de l'interface HID/DirectInput.
 - `PadBridgeVhf.h` : format binaire ABI de 10 octets + IOCTL prive.
 - `PadBridgeVhf.c` : point d'entree KMDF, interface d'appareil, validation
   stricte des rapports, descripteur HID et appels VHF.
-- `PadBridgeVhf.vcxproj` : projet Visual Studio **KMDF x64** autonome (Debug/Release), lie `VhfKm.lib`. Aucun INF ni deployeur.
+- `PadBridgeVhf.vcxproj` : projet Visual Studio **KMDF x64** autonome (Debug/Release), lie `VhfKm.lib`, avec `SignMode=Off` pour empecher la creation automatique de certificats de test. Aucun INF ni deployeur.
 - `build-wdk.ps1` : compile uniquement ce projet avec MSBuild ; aucune installation ou signature.
 
 - `src-tauri/src/virtual_pad/vhf_protocol.rs` : encodeur Rust pur, sans
@@ -43,6 +43,8 @@ Octets : `[id=1, buttons_lo, buttons_hi, hat, lx, ly, rx, ry, lt, rt]`.
   dans ce prototype.
 
 ## Securite et etapes de construction
+
+**Avant tout test noyau dans Hyper-V : creer un point de controle de la VM (`PadBridge - Windows propre`). La premiere etape est uniquement la compilation du code sans charger le pilote.**
 
 **Ne pas effectuer de commande `devcon install`, `pnputil /add-driver`,
 `bcdedit /set testsigning on` ou desactivation de Secure Boot** sur
@@ -95,7 +97,9 @@ avec snapshot et outil de debogage noyau** :
 ## Portee du build WDK
 
 Le build generera eventuellement `PadBridgeVhf.sys` **uniquement si le
-code passe la compilation dans ton environnement WDK**. Aucune installation
+code passe la compilation dans ton environnement WDK**. Le projet definit
+explicitement `SignMode=Off` ; le binaire qui en resulte, s'il existe,
+sera **non signe et impropre au chargement tel quel**. Aucune installation
 automatique n'existe. L'absence d'INF est volontaire tant que le watchdog,
 la gestion PnP et le broker privilegie n'ont pas ete audites. Compiler
 n'implique **ni execution ni chargement en memoire noyau**.

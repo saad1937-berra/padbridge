@@ -39,6 +39,23 @@ Consulter [`ACCESSIBILITE_PB024.md`](ACCESSIBILITE_PB024.md) pour les scénarios
 - [ ] Si la vibration fonctionne : répéter une fois à **30 % / 1,5 seconde** puis vérifier que la lecture des touches continue de fonctionner.
 - [ ] Le bouton doit être indisponible pour une DualSense ; aucune installation de pilote n'est autorisée.
 
+## POC A — Parcours guidé des commandes (nouveau, à valider)
+
+Ce test est **strictement en lecture seule** et n'a aucun lien avec T14.
+
+- [ ] Lancer `npm run tauri dev`, connecter la DualShock 4 en Bluetooth, ouvrir **Test manette → Vérification guidée**.
+- [ ] Cliquer sur **Démarrer le parcours**. Vérifier que la progression débute à **0 / 24**, sans considérer les touches précédemment pressées.
+- [ ] Tester les boutons Croix, Rond, Carré, Triangle, directionnels haut/bas/gauche/droite, L1/R1, clic L3/R3, Share et Options.
+- [ ] Déplacer chaque joystick à gauche, à droite, en haut et en bas jusqu'à environ 70 % de sa course ; presser L2 et R2 au-delà de 70 %.
+- [ ] Vérifier que seuls les contrôles réellement observés passent à **Vérifiée**, et que l'indicateur affiche le nombre total correct.
+- [ ] Cliquer sur **Terminer le parcours** : les résultats partiels restent visibles, aucune commande n'est envoyée à la manette.
+- [ ] Cliquer sur **Recommencer** : la progression repart à zéro, puis vérifier un nouveau bouton.
+- [ ] Si plusieurs manettes sont connectées, changer de manette : le parcours doit recommencer à zéro pour éviter un mélange de mesures.
+- [ ] Aucun passage automatique en XInput, aucune vibration, aucune installation de pilote et aucun changement de profil.
+- [ ] Les contrôles PS, pavé tactile et micro sont exclus du parcours de base ; les relâchements et la précision analogique restent à tester séparément.
+
+**Critère de validation :** 24/24 commandes observées sur une vraie DualShock 4 en Bluetooth ou échecs documentés par contrôle. Un résultat incomplet ne démontre pas à lui seul une panne matérielle. Ne pas déclarer le POC A globalement validé avant les essais de déconnexion/reconnexion et les appareils non testés.
+
 ## POC A — HID réel
 - [ ] L'écran **Appareils** identifie le modèle et le transport Bluetooth.
 - [ ] L'écran **Test manette** montre chaque bouton pressé puis relâché.

@@ -128,7 +128,7 @@ static BOOLEAN PbReportHasInput(const PB_VHF_REPORT* report)
 _Use_decl_annotations_
 VOID PbEvtWatchdog(WDFTIMER Timer)
 {
-    WDFDEVICE device = (WDFDEVICE)WdfObjectGetParentObject(Timer);
+    WDFDEVICE device = (WDFDEVICE)WdfTimerGetParentObject(Timer);
     PPB_DEVICE_CONTEXT context = PbGetContext(device);
 
     WdfWaitLockAcquire(context->ReportLock, NULL);

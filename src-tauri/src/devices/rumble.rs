@@ -4,15 +4,16 @@
 use crate::devices::model::Transport;
 use crate::error::{codes, AppError, AppResult};
 use std::collections::HashMap;
-use std::sync::{mpsc::{SyncSender, TrySendError}, Mutex};
+use std::sync::{mpsc::{self, Sender, SyncSender, TrySendError}, Mutex};
+use std::time::Duration;
 
 pub const MAX_INTENSITY: u8 = 180;
 pub const MAX_DURATION_MS: u16 = 500;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 pub enum RumbleCommand {
-    Start { right: u8, left: u8, duration_ms: u16 },
-    Stop,
+    Start { right: u8, left: u8, duration_ms: u16, reply: Sender<AppResult<()>> },
+    Stop { reply: Sender<AppResult<()>> },
 }
 
 pub fn validate(right: u8, left: u8, duration_ms: u16) -> AppResult<RumbleCommand> {
@@ -78,7 +79,7 @@ impl RumbleRegistry {
         if let Ok(mut writers) = self.writers.lock() { writers.remove(id); }
     }
 
-    pub fn send(&self, id: &str, command: RumbleCommand) -> AppResult<()> {
+    fn send(&self, id: &str, command: RumbleCommand) -> AppResult<()> {
         let writers = self.writers.lock()
             .map_err(|_| AppError::new(codes::INTERNAL, "verrou HID indisponible"))?;
         let tx = writers.get(id)
@@ -87,6 +88,25 @@ impl RumbleRegistry {
             TrySendError::Full(_) => AppError::new(codes::BACKEND_SESSION, "commande de vibration en attente ; réessayez"),
             TrySendError::Disconnected(_) => AppError::new(codes::DEVICE_UNREADABLE, "la manette a été déconnectée"),
         })
+    }
+
+    pub fn pulse(&self, id: &str, right: u8, left: u8, duration_ms: u16) -> AppResult<()> {
+        let cmd = validate(right, left, duration_ms)?;
+        let (reply, rx) = mpsc::channel();
+        let RumbleCommand::Start { right, left, duration_ms, .. } = cmd else { unreachable!() };
+        self.send(id, RumbleCommand::Start { right, left, duration_ms, reply })?;
+        self.wait_ack(rx)
+    }
+
+    pub fn stop(&self, id: &str) -> AppResult<()> {
+        let (reply, rx) = mpsc::channel();
+        self.send(id, RumbleCommand::Stop { reply })?;
+        self.wait_ack(rx)
+    }
+
+    fn wait_ack(&self, rx: mpsc::Receiver<AppResult<()>>) -> AppResult<()> {
+        rx.recv_timeout(Duration::from_millis(700))
+            .map_err(|_| AppError::new(codes::DEVICE_UNREADABLE, "écriture HID non confirmée"))?
     }
 }
 

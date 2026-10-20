@@ -5,6 +5,8 @@
 pub mod backend;
 pub mod null_backend;
 pub mod selected_backend;
+// POC B : protocole HID virtuel pur, sans pilotes ni IOCTL actifs.
+pub mod vhf_protocol;
 
 /// Backend de test en mémoire : permet de vérifier les invariants (PB-010, PB-018).
 #[cfg(test)]

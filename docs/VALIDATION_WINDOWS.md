@@ -8,6 +8,16 @@ Cette procédure valide le logiciel **sans VM ni installation de pilote expérim
 - Aucun pilote virtuel installé par PadBridge : `selected_backend.rs` utilise `NullBackend`.
 - Ne pas considérer le fonctionnement d'un jeu sans PadBridge comme la preuve que PadBridge crée une manette virtuelle.
 
+## T14 — Test de vibration DualShock 4
+
+- [ ] Depuis la branche de travail, terminer une compilation Windows sans erreur.
+- [ ] Connecter la DualShock 4 en Bluetooth, ouvrir **Test de la manette**.
+- [ ] Sélectionner intensité **20 %** et durée **200 ms**, puis cliquer une seule fois sur **Tester la vibration**.
+- [ ] Vérifier **physiquement** si la manette vibre et si l'effet cesse rapidement. Si aucune vibration, relever le message exact ; ne pas conclure au succès simplement parce que l'écriture HID a réussi.
+- [ ] Essayer **Arrêter** si nécessaire ; aucun effet ne doit persister après une déconnexion ou fermeture.
+- [ ] Si la vibration fonctionne : répéter une fois à **30 % / 250 ms** puis vérifier que la lecture des touches continue de fonctionner.
+- [ ] Le bouton doit être indisponible pour une DualSense ; aucune installation de pilote n'est autorisée.
+
 ## POC A — HID réel
 - [ ] L'écran **Appareils** identifie le modèle et le transport Bluetooth.
 - [ ] L'écran **Test manette** montre chaque bouton pressé puis relâché.

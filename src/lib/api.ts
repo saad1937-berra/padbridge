@@ -31,6 +31,8 @@ export interface Api {
   getControllerState(deviceId: string): Promise<ControllerView>;
   startInputTest(deviceId: string, profile?: Profile | null): Promise<void>;
   stopInputTest(): Promise<void>;
+  testDs4Rumble(deviceId: string, intensity: number, durationMs: number): Promise<void>;
+  stopDs4Rumble(deviceId: string): Promise<void>;
   analyzeStickDrift(samples: DriftSample[]): Promise<DriftReport>;
   validateProfile(profile: Profile): Promise<ValidationReport>;
   saveProfile(profile: Profile): Promise<SaveOutcome>;
@@ -53,6 +55,8 @@ const tauriApi: Api = {
   getControllerState: (deviceId) => call("get_controller_state", { deviceId }),
   startInputTest: (deviceId, profile) => call("start_input_test", { deviceId, profile: profile ?? null }),
   stopInputTest: () => call("stop_input_test"),
+  testDs4Rumble: (deviceId, intensity, durationMs) => call("test_ds4_rumble", { deviceId, intensity, durationMs }),
+  stopDs4Rumble: (deviceId) => call("stop_ds4_rumble", { deviceId }),
   analyzeStickDrift: (samples) => call("analyze_stick_drift", { samples }),
   validateProfile: (profile) => call("validate_profile", { profile }),
   saveProfile: (profile) => call("save_profile", { profile }),

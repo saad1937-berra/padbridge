@@ -3,9 +3,10 @@
 // Ce fichier exige Visual Studio, WDK, Wdf.h, Vhf.h, VhfKm.lib et un INF valide.
 // Aucune installation sur la machine principale avant audit, tests de charge et VM.
 
-#include <initguid.h>
-#include <wdmsec.h>
+// Charger les types noyau/WDF avant wdmsec.h : celui-ci les utilise.
 #include "PadBridgeVhf.h"
+#include <wdmsec.h>
+#include <initguid.h>
 
 // GUID prive, propre a PadBridge. Pas de faux VID/PID Microsoft, Sony ou Xbox.
 DEFINE_GUID(GUID_DEVINTERFACE_PADBRIDGE_VHF,

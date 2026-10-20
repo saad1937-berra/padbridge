@@ -16,11 +16,11 @@ pub enum RumbleCommand {
     Stop { reply: Sender<AppResult<()>> },
 }
 
-pub fn validate(right: u8, left: u8, duration_ms: u16) -> AppResult<RumbleCommand> {
+pub fn validate(right: u8, left: u8, duration_ms: u16) -> AppResult<()> {
     if right > MAX_INTENSITY || left > MAX_INTENSITY || !(50..=MAX_DURATION_MS).contains(&duration_ms) {
         return Err(AppError::new(codes::INVALID_ARGUMENT, "vibration : intensité 0–180 et durée 50–500 ms"));
     }
-    Ok(RumbleCommand::Start { right, left, duration_ms })
+    Ok(())
 }
 
 pub fn build_report(transport: Transport, right: u8, left: u8) -> AppResult<Vec<u8>> {
@@ -91,9 +91,8 @@ impl RumbleRegistry {
     }
 
     pub fn pulse(&self, id: &str, right: u8, left: u8, duration_ms: u16) -> AppResult<()> {
-        let cmd = validate(right, left, duration_ms)?;
+        validate(right, left, duration_ms)?;
         let (reply, rx) = mpsc::channel();
-        let RumbleCommand::Start { right, left, duration_ms, .. } = cmd else { unreachable!() };
         self.send(id, RumbleCommand::Start { right, left, duration_ms, reply })?;
         self.wait_ack(rx)
     }

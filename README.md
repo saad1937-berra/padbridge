@@ -77,6 +77,8 @@ Dans **Test de la manette → Vibrations**, le bouton « Tester la vibration » 
 
 **Ce n'est pas du retour de force en jeu :** PadBridge n'intercepte pas les effets des jeux et le mode natif reste inchangé. Le support DualSense nécessitera un protocole spécifique distinct.
 
+**Correctif du code PB-E202 / erreur Windows 87 :** en Bluetooth, le rapport DS4 logique reste de 78 octets (CRC aux octets 74–77), mais le tampon remis à `HidD_SetOutputReport` est maintenant complété à la longueur déclarée dans `HIDP_CAPS.OutputReportByteLength` (547 octets sur le matériel testé). PadBridge rejette les longueurs indisponibles ou incohérentes. Cela corrige la taille fournie à l'API Windows, mais ne constitue pas une validation de la vibration physique.
+
 ## Diagnostic de dérive (drift) — sans pilote supplémentaire
 
 Dans **Test de la manette**, cliquez sur **Tester mes joysticks (5 s)**, posez la manette et ne touchez pas aux sticks. PadBridge collecte les axes HID bruts et fait analyser les mesures par le moteur Rust. Le statut peut être normal, dérive possible, mouvement détecté ou incertain. L'outil ne répare pas les joysticks, ne modifie pas les profils et ne constitue pas un diagnostic matériel définitif. Répétez toute mesure suspecte dans des conditions stables.

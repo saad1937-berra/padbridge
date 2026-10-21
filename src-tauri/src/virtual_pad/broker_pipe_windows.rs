@@ -288,6 +288,28 @@ mod tests {
     }
 
     #[test]
+    fn scm_stop_interrupts_real_pending_connect_without_a_client() {
+        use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+        use std::thread;
+        use std::time::{Duration, Instant};
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let worker_stop = Arc::clone(&stop);
+        let started = Instant::now();
+        let worker = thread::spawn(move || -> io::Result<io::ErrorKind> {
+            let mut pipe = PreviewPipe::bind_for_sid(
+                "S-1-5-21-123456789-987654321-123456789-1001"
+            )?;
+            Ok(pipe.serve_one_message_until(&worker_stop).unwrap_err().kind())
+        });
+        thread::sleep(Duration::from_millis(200));
+        stop.store(true, Ordering::Release);
+        assert_eq!(worker.join().expect("worker panicked").expect("pipe init"),
+            io::ErrorKind::Interrupted);
+        assert!(started.elapsed() < Duration::from_millis(IO_TIMEOUT_MS as u64));
+    }
+
+    #[test]
     fn known_pipe_name_is_constant_and_local() {
         assert_eq!(PIPE_NAME, r"\\.\pipe\PadBridge.Broker.POC.v1");
     }

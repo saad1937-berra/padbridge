@@ -13,6 +13,8 @@
 use std::io;
 use std::mem::size_of;
 use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use windows_sys::Win32::Foundation::{
     CloseHandle, GetLastError, LocalFree, HANDLE, ERROR_PIPE_CONNECTED, ERROR_IO_PENDING,
@@ -39,6 +41,8 @@ pub const PIPE_NAME: &str = r"\\.\pipe\PadBridge.Broker.POC.v1";
 const PIPE_ACCESS_DUPLEX: u32 = 0x00000003;
 /// Per-operation bound. The preview is not a production service.
 pub const IO_TIMEOUT_MS: u32 = 2500;
+/// Maximum STOP response latency while an overlapped request is pending.
+const STOP_POLL_MS: u32 = 50;
 
 // A user's SID may come ONLY from future privileged provisioning.
 // No names, wildcards, SID aliases or SDDL escape sequences are accepted.
@@ -134,15 +138,27 @@ impl PreviewPipe {
         Ok(Self { handle, provisioned_user_sid: provisioned_user_sid.to_owned() })
     }
 
-    /// Handle ONE client within bounded wait times, then disconnect.
-    /// Still not SCM-ready; no cancellation event from the service manager.
+    /// Standalone preview: one bounded client message, no SCM.
     pub fn serve_one_message(&mut self) -> io::Result<()> {
-        // A client may have connected before this overlapped ConnectNamedPipe.
-        self.bounded_io(true, |overlapped, _bytes| unsafe {
+        let stop = AtomicBool::new(false);
+        self.serve_one_message_until(&stop)
+    }
+
+    /// The SCM owns `stop` for the whole lifetime of this call.
+    /// Pending Connect/Read/Write operations are cancelled when STOP arrives.
+    pub fn serve_one_message_until(&mut self, stop: &AtomicBool) -> io::Result<()> {
+        if stop.load(Ordering::Acquire) {
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "service stopping"));
+        }
+        self.bounded_io(true, stop, |overlapped, _bytes| unsafe {
             ConnectNamedPipe(self.handle, overlapped)
         })?;
-        let result = self.read_and_respond();
-        // SAFETY: all overlapped requests have been drained before disconnect.
+        let result = if stop.load(Ordering::Acquire) {
+            Err(io::Error::new(io::ErrorKind::Interrupted, "service stopping"))
+        } else {
+            self.read_and_respond(stop)
+        };
+        // SAFETY: pending overlapped operations have been drained first.
         unsafe { DisconnectNamedPipe(self.handle); }
         result
     }
@@ -150,6 +166,7 @@ impl PreviewPipe {
     fn bounded_io(
         &self,
         allow_already_connected: bool,
+        stop: &AtomicBool,
         action: impl FnOnce(*mut OVERLAPPED, *mut u32) -> i32,
     ) -> io::Result<u32> {
         // Manual reset event, unique to this single in-flight request.
@@ -173,29 +190,59 @@ impl PreviewPipe {
         if error != ERROR_IO_PENDING {
             return Err(io::Error::from_raw_os_error(error as i32));
         }
-        // The operation is pending; timeout triggers CancelIoEx. Draining
-        // completion before dropping OVERLAPPED + event avoids a UAF race.
-        let wait = unsafe { WaitForSingleObject(event.0, IO_TIMEOUT_MS) };
-        if wait != WAIT_OBJECT_0 {
-            unsafe {
-                CancelIoEx(self.handle, &overlapped);
-                let mut drained = 0u32;
-                GetOverlappedResult(self.handle, &overlapped, &mut drained, 1);
+        // Poll a monotonic deadline; STOP interrupts within 50 ms rather
+        // than waiting for the whole 2.5 s timeout. Never free OVERLAPPED
+        // until cancellation has completed.
+        let started = Instant::now();
+        loop {
+            if stop.load(Ordering::Acquire)
+                || started.elapsed() >= Duration::from_millis(IO_TIMEOUT_MS as u64)
+            {
+                unsafe {
+                    CancelIoEx(self.handle, &overlapped);
+                    let mut drained = 0u32;
+                    // Wait for completion (even ERROR_OPERATION_ABORTED)
+                    // before the stack buffer/event may be dropped.
+                    GetOverlappedResult(self.handle, &overlapped, &mut drained, 1);
+                }
+                let kind = if stop.load(Ordering::Acquire) {
+                    io::ErrorKind::Interrupted
+                } else {
+                    io::ErrorKind::TimedOut
+                };
+                return Err(io::Error::new(kind, "PadBridge IPC operation cancelled"));
             }
-            return Err(io::Error::new(io::ErrorKind::TimedOut,
-                "PadBridge IPC operation timed out or was cancelled"));
+            let remaining = Duration::from_millis(IO_TIMEOUT_MS as u64)
+                .saturating_sub(started.elapsed());
+            let wait_ms = (remaining.as_millis() as u32).min(STOP_POLL_MS).max(1);
+            let wait = unsafe { WaitForSingleObject(event.0, wait_ms) };
+            if wait == WAIT_OBJECT_0 {
+                if unsafe {
+                    GetOverlappedResult(self.handle, &overlapped, &mut count, 0)
+                } == 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                if stop.load(Ordering::Acquire) {
+                    return Err(io::Error::new(io::ErrorKind::Interrupted, "service stopping"));
+                }
+                return Ok(count);
+            }
+            // WAIT_TIMEOUT loops; WAIT_FAILED also goes through CancelIoEx
+            // before freeing any buffer associated with the pending I/O.
+            if wait != windows_sys::Win32::Foundation::WAIT_TIMEOUT {
+                unsafe {
+                    CancelIoEx(self.handle, &overlapped);
+                    let mut drained = 0u32;
+                    GetOverlappedResult(self.handle, &overlapped, &mut drained, 1);
+                }
+                return Err(io::Error::last_os_error());
+            }
         }
-        if unsafe {
-            GetOverlappedResult(self.handle, &overlapped, &mut count, 0)
-        } == 0 {
-            return Err(io::Error::last_os_error());
-        }
-        Ok(count)
     }
 
-    fn read_and_respond(&mut self) -> io::Result<()> {
+    fn read_and_respond(&mut self, stop: &AtomicBool) -> io::Result<()> {
         let mut request = [0u8; REQUEST_LEN];
-        let bytes_read = self.bounded_io(false, |overlapped, count| unsafe {
+        let bytes_read = self.bounded_io(false, stop, |overlapped, count| unsafe {
             ReadFile(self.handle, request.as_mut_ptr().cast(),
                 REQUEST_LEN as u32, count, overlapped)
         })?;
@@ -208,7 +255,7 @@ impl PreviewPipe {
             broker_ipc::Status::Unauthorized
         };
         let response = broker_ipc::response(status);
-        let bytes_written = self.bounded_io(false, |overlapped, count| unsafe {
+        let bytes_written = self.bounded_io(false, stop, |overlapped, count| unsafe {
             WriteFile(self.handle, response.as_ptr().cast(),
                 response.len() as u32, count, overlapped)
         })?;

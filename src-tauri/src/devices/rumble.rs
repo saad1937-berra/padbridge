@@ -10,6 +10,17 @@ use std::time::Duration;
 pub const MAX_INTENSITY: u8 = 180;
 pub const MAX_DURATION_MS: u16 = 2000;
 
+// T14 is suspended after inconclusive physical Bluetooth tests.
+// Enforce this on the Rust output path, not only in the UI.
+pub const T14_OUTPUT_ENABLED: bool = false;
+
+pub fn ensure_output_allowed() -> AppResult<()> {
+    if !T14_OUTPUT_ENABLED {
+        return Err(AppError::new(codes::BACKEND_UNAVAILABLE, "T14 suspendu : sorties HID de vibration interdites"));
+    }
+    Ok(())
+}
+
 #[derive(Debug)]
 pub enum RumbleCommand {
     Start { right: u8, left: u8, duration_ms: u16, reply: Sender<AppResult<()>> },
@@ -121,6 +132,7 @@ impl RumbleRegistry {
     }
 
     pub fn pulse(&self, id: &str, right: u8, left: u8, duration_ms: u16) -> AppResult<()> {
+        ensure_output_allowed()?;
         validate(right, left, duration_ms)?;
         let (reply, rx) = mpsc::channel();
         self.send(id, RumbleCommand::Start { right, left, duration_ms, reply })?;
@@ -128,6 +140,7 @@ impl RumbleRegistry {
     }
 
     pub fn stop(&self, id: &str) -> AppResult<()> {
+        ensure_output_allowed()?;
         let (reply, rx) = mpsc::channel();
         self.send(id, RumbleCommand::Stop { reply })?;
         self.wait_ack(rx)
@@ -142,6 +155,18 @@ impl RumbleRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn t14_output_is_blocked_without_queueing_commands() {
+        assert!(!T14_OUTPUT_ENABLED);
+        let registry = RumbleRegistry::default();
+        let (tx, rx) = mpsc::sync_channel(2);
+        registry.register("test-ds4".into(), tx);
+        assert!(registry.pulse("test-ds4", 20, 20, 500).is_err());
+        assert!(registry.stop("test-ds4").is_err());
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)));
+    }
+
 
     #[test]
     fn bt_layout_crc_and_idle_frame() {

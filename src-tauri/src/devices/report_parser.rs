@@ -234,6 +234,27 @@ mod tests {
     }
 
     #[test]
+    fn ds4_bluetooth_press_release_and_reconnect_reports() {
+        // Pure synthetic reports: never open a Bluetooth device or write HID.
+        let mut pressed = vec![0u8; 78];
+        pressed[0] = 0x11;
+        pressed[3..7].copy_from_slice(&[128, 128, 128, 128]);
+        pressed[7] = 0x08 | 0x20; // D-pad neutral + Cross
+        let first = parse(ControllerModel::DualShock4, &pressed).unwrap();
+        assert!(first.buttons.contains(PsButton::Cross));
+
+        let mut released = pressed.clone();
+        released[7] = 0x08; // no pressed face button
+        let idle = parse(ControllerModel::DualShock4, &released).unwrap();
+        assert!(!idle.buttons.contains(PsButton::Cross));
+
+        // A fresh stream after reconnect must not preserve the previous press.
+        let after_reconnect = parse(ControllerModel::DualShock4, &released).unwrap();
+        assert!(after_reconnect.buttons.is_empty());
+        assert_eq!((after_reconnect.lx, after_reconnect.ly), (128, 128));
+    }
+
+    #[test]
     fn dualsense_usb_layout_and_battery() {
         let mut r = vec![0u8; 64];
         r[0] = 0x01;

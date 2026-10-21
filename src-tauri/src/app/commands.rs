@@ -7,7 +7,7 @@ use super::ui_events::{SharedTestSub, TestSub};
 use crate::diagnostics::{drift::{self, DriftReport, DriftSample}, export_text, health, DiagnosticsReport};
 use crate::engine::{ActivateResult, ControllerView, Engine, SaveOutcome};
 use crate::devices::model::{ConnectionState, ControllerModel, Transport};
-use crate::devices::rumble::RumbleRegistry;
+use crate::devices::rumble::{ensure_output_allowed, RumbleRegistry};
 use crate::error::{codes, AppError, AppResult};
 use crate::profiles::schema::{AppSettings, OutputMode, Profile, ValidationReport};
 use std::sync::Arc;
@@ -160,6 +160,7 @@ pub async fn test_ds4_rumble(
     intensity: u8,
     duration_ms: u16,
 ) -> AppResult<()> {
+    ensure_output_allowed()?;
     let id = permissions::device_id(&device_id)?.to_string();
     let controller = state.engine.get_controller(&id)?;
     if controller.device.model != ControllerModel::DualShock4
@@ -177,6 +178,7 @@ pub async fn test_ds4_rumble(
 
 #[tauri::command]
 pub async fn stop_ds4_rumble(state: State<'_, AppState>, device_id: String) -> AppResult<()> {
+    ensure_output_allowed()?;
     let id = permissions::device_id(&device_id)?.to_string();
     let rumble = state.rumble.clone();
     blocking(move || rumble.stop(&id)).await?

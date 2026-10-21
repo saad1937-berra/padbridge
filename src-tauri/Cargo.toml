@@ -32,7 +32,7 @@ broker-poc = ["dep:windows-sys"]
 # Explicit opt-in only; no installer, SCM registration or autostart.
 broker-service-poc = ["broker-poc", "windows-sys/Win32_System_Pipes", "windows-sys/Win32_Security_Authorization", "windows-sys/Win32_System_Threading"]
 # Inert SCM START/STOP status skeleton. No IPC or kernel transport starts.
-broker-scm-poc = ["broker-service-poc", "windows-sys/Win32_System_Services"]
+broker-scm-poc = ["broker-service-poc", "windows-sys/Win32_System_Services", "windows-sys/Win32_System_Registry"]
 
 [[bin]]
 name = "padbridge-broker-preview"

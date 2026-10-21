@@ -57,29 +57,6 @@ extern "system" fn control_handler(
     NO_ERROR
 }
 
-fn run_preview() -> io::Result<()> {
-    // Must come from protected machine configuration; never CLI or IPC input.
-    let sid = read_authorized_sid()?;
-    if STOP_REQUESTED.load(Ordering::Acquire) {
-        return Ok(());
-    }
-    let mut pipe = PreviewPipe::bind_for_sid(&sid)?;
-    // Never opens or talks to WindowsVhfTransport, even with admin privileges.
-    while !STOP_REQUESTED.load(Ordering::Acquire) {
-        match pipe.serve_one_message_until(&STOP_REQUESTED) {
-            Ok(()) => {}
-            Err(ref error) if error.kind() == io::ErrorKind::TimedOut => {
-                // Idle pipe or stalled client: teardown/disconnect has already
-                // occurred. Re-arm the sole listening pipe, unless STOP.
-            }
-            Err(ref error) if error.kind() == io::ErrorKind::Interrupted
-                && STOP_REQUESTED.load(Ordering::Acquire) => break,
-            Err(error) => return Err(error),
-        }
-    }
-    Ok(())
-}
-
 extern "system" fn service_main(_argc: u32, _argv: *mut *mut u16) {
     STOP_REQUESTED.store(false, Ordering::Release);
     let name = wide(SERVICE_NAME);
@@ -156,10 +133,5 @@ mod tests {
     fn service_name_is_padbridge_specific() {
         assert_eq!(SERVICE_NAME, "PadBridgeBrokerPreview");
         assert_ne!(SERVICE_NAME, "PlugPlay");
-    }
-    #[test]
-    fn dry_run_service_defaults_to_no_pending_stop() {
-        // Pure assertion on design constant; SCM callbacks require VM tests.
-        assert!(!STOP_REQUESTED.load(Ordering::Acquire));
     }
 }

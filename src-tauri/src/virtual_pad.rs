@@ -17,6 +17,8 @@ pub mod broker_pipe_windows;
 pub mod broker_auth_windows;
 #[cfg(all(windows, feature = "broker-scm-poc"))]
 pub mod broker_scm_windows;
+#[cfg(all(windows, feature = "broker-scm-poc"))]
+pub mod broker_config_windows;
 #[cfg(all(windows, feature = "broker-poc"))]
 pub mod vhf_broker_windows;
 

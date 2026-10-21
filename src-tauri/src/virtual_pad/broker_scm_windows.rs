@@ -1,24 +1,25 @@
-//! Inert Windows Service Control Manager (SCM) lifecycle skeleton.
+//! Windows SCM preview: STOP-cancellable, dry-run local IPC only.
 //!
-//! Compiles for inspection only. No CreateService call, no installer,
-//! no driver handle, no named-pipe accept loop and no automatic elevation.
-//! The service does not process commands: RUNNING means "control loop alive",
-//! not "PadBridge virtual controller available".
+//! Opt-in compilation; no CreateService, no INF, no kernel IOCTL or auto-start.
+//! Missing admin-provisioned SID in HKLM => fail closed before opening a pipe.
+//! The window/Tauri frontend always retains NullBackend.
+//! Despite SCM integration this is NOT a production-deployable service:
+//! pipe ACL/configuration and stop races need isolated Windows VM testing.
 
-use std::{io, ptr, sync::atomic::{AtomicIsize, Ordering}};
-use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, NO_ERROR, WAIT_OBJECT_0};
+use std::{io, ptr, sync::atomic::{AtomicBool, Ordering}};
+use windows_sys::Win32::Foundation::NO_ERROR;
 use windows_sys::Win32::System::Services::{
     RegisterServiceCtrlHandlerExW, SetServiceStatus, StartServiceCtrlDispatcherW,
     SERVICE_ACCEPT_STOP, SERVICE_CONTROL_STOP, SERVICE_RUNNING, SERVICE_START_PENDING,
     SERVICE_STATUS, SERVICE_STATUS_HANDLE, SERVICE_STOPPED, SERVICE_STOP_PENDING,
     SERVICE_TABLE_ENTRYW, SERVICE_WIN32_OWN_PROCESS,
 };
-use windows_sys::Win32::System::Threading::{
-    CreateEventW, SetEvent, WaitForSingleObject, INFINITE,
-};
+
+use super::broker_config_windows::read_authorized_sid;
+use super::broker_pipe_windows::PreviewPipe;
 
 pub const SERVICE_NAME: &str = "PadBridgeBrokerPreview";
-static STOP_EVENT: AtomicIsize = AtomicIsize::new(0);
+static STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(std::iter::once(0)).collect()
@@ -39,7 +40,7 @@ fn status(handle: SERVICE_STATUS_HANDLE, state: u32, win32_code: u32) {
             0
         },
     };
-    // SAFETY: handle was returned by RegisterServiceCtrlHandlerExW.
+    // SAFETY: handle is from SCM; failures are verified during real VM tests.
     unsafe { SetServiceStatus(handle, &report); }
 }
 
@@ -49,21 +50,40 @@ extern "system" fn control_handler(
     _context: *mut core::ffi::c_void,
 ) -> u32 {
     if control == SERVICE_CONTROL_STOP {
-        let event = STOP_EVENT.load(Ordering::Acquire);
-        if event != 0 {
-            // SAFETY: main thread keeps this event open until service stopped.
-            unsafe { SetEvent(event as HANDLE); }
-        }
+        // Only a lock-free signal: no raw event handle and no Win32 calls from
+        // callback, avoiding callback-vs-teardown use-after-close races.
+        STOP_REQUESTED.store(true, Ordering::Release);
     }
     NO_ERROR
 }
 
-extern "system" fn service_main(
-    _argc: u32,
-    _argv: *mut *mut u16,
-) {
+fn run_preview() -> io::Result<()> {
+    // Must come from protected machine configuration; never CLI or IPC input.
+    let sid = read_authorized_sid()?;
+    if STOP_REQUESTED.load(Ordering::Acquire) {
+        return Ok(());
+    }
+    let mut pipe = PreviewPipe::bind_for_sid(&sid)?;
+    // Never opens or talks to WindowsVhfTransport, even with admin privileges.
+    while !STOP_REQUESTED.load(Ordering::Acquire) {
+        match pipe.serve_one_message_until(&STOP_REQUESTED) {
+            Ok(()) => {}
+            Err(ref error) if error.kind() == io::ErrorKind::TimedOut => {
+                // Idle pipe or stalled client: teardown/disconnect has already
+                // occurred. Re-arm the sole listening pipe, unless STOP.
+            }
+            Err(ref error) if error.kind() == io::ErrorKind::Interrupted
+                && STOP_REQUESTED.load(Ordering::Acquire) => break,
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+extern "system" fn service_main(_argc: u32, _argv: *mut *mut u16) {
+    STOP_REQUESTED.store(false, Ordering::Release);
     let name = wide(SERVICE_NAME);
-    // SAFETY: service dispatcher calls this entry; name is NUL terminated.
+    // SAFETY: invoked by the Windows service dispatcher.
     let status_handle = unsafe {
         RegisterServiceCtrlHandlerExW(name.as_ptr(), Some(control_handler), ptr::null_mut())
     };
@@ -71,31 +91,45 @@ extern "system" fn service_main(
         return;
     }
     status(status_handle, SERVICE_START_PENDING, 0);
-    // Manual-reset event; initially unsignaled.
-    // SAFETY: unnamed event created with default security.
-    let stop_event = unsafe { CreateEventW(ptr::null(), 1, 0, ptr::null()) };
-    if stop_event.is_null() {
-        status(status_handle, SERVICE_STOPPED, 1);
-        return;
-    }
-    STOP_EVENT.store(stop_event as isize, Ordering::Release);
 
-    // This preview intentionally never binds IPC or opens a device.
-    // A future protected configuration and cancellable pipe worker are
-    // prerequisites for activating the broker.
-    status(status_handle, SERVICE_RUNNING, 0);
-    // SAFETY: stop_event remains alive during the wait.
-    let wait = unsafe { WaitForSingleObject(stop_event, INFINITE) };
+    // If config fails, never report RUNNING or expose a privileged pipe.
+    let sid = read_authorized_sid();
+    let error_code = match sid {
+        Err(error) => error.raw_os_error().unwrap_or(5) as u32,
+        Ok(sid) => {
+            if STOP_REQUESTED.load(Ordering::Acquire) {
+                0
+            } else {
+                match PreviewPipe::bind_for_sid(&sid) {
+                    Err(error) => error.raw_os_error().unwrap_or(5) as u32,
+                    Ok(mut pipe) => {
+                        status(status_handle, SERVICE_RUNNING, 0);
+                        let mut failure = 0;
+                        while !STOP_REQUESTED.load(Ordering::Acquire) {
+                            match pipe.serve_one_message_until(&STOP_REQUESTED) {
+                                Ok(()) => {}
+                                Err(ref error) if error.kind() == io::ErrorKind::TimedOut => {}
+                                Err(ref error) if error.kind() == io::ErrorKind::Interrupted
+                                    && STOP_REQUESTED.load(Ordering::Acquire) => break,
+                                Err(error) => {
+                                    failure = error.raw_os_error().unwrap_or(1) as u32;
+                                    break;
+                                }
+                            }
+                        }
+                        failure
+                    }
+                }
+            }
+        }
+    };
     status(status_handle, SERVICE_STOP_PENDING, 0);
-    STOP_EVENT.store(0, Ordering::Release);
-    // SAFETY: we own this event and have stopped accepting commands.
-    unsafe { CloseHandle(stop_event); }
-    status(status_handle, SERVICE_STOPPED, if wait == WAIT_OBJECT_0 { 0 } else { 1 });
+    status(status_handle, SERVICE_STOPPED, error_code);
 }
 
-/// Called *only* by the explicitly feature-gated SCM binary, never Tauri.
-/// Requires SCM invocation; does not install or launch a service by itself.
-pub fn dispatch_inert_service() -> io::Result<()> {
+/// Dispatch through SCM only: no installation, config writer or elevation.
+/// Calling this executable interactively returns the usual SCM-connect error.
+pub fn dispatch_preview_service() -> io::Result<()> {
     let name = wide(SERVICE_NAME);
     let table = [
         SERVICE_TABLE_ENTRYW {
@@ -107,7 +141,7 @@ pub fn dispatch_inert_service() -> io::Result<()> {
             lpServiceProc: None,
         },
     ];
-    // SAFETY: table stays alive while SCM invokes service_main.
+    // SAFETY: dispatcher executes callback before returning.
     if unsafe { StartServiceCtrlDispatcherW(table.as_ptr()) } == 0 {
         return Err(io::Error::last_os_error());
     }
@@ -117,9 +151,15 @@ pub fn dispatch_inert_service() -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn service_name_is_padbridge_specific() {
         assert_eq!(SERVICE_NAME, "PadBridgeBrokerPreview");
         assert_ne!(SERVICE_NAME, "PlugPlay");
+    }
+    #[test]
+    fn dry_run_service_defaults_to_no_pending_stop() {
+        // Pure assertion on design constant; SCM callbacks require VM tests.
+        assert!(!STOP_REQUESTED.load(Ordering::Acquire));
     }
 }

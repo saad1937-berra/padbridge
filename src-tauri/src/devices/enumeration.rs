@@ -5,7 +5,7 @@
 use super::model::{device_id_from_path, ControllerDevice, ControllerModel, Transport, SONY_VENDOR_ID};
 use crate::diagnostics::events::Severity;
 use crate::engine::Engine;
-use crate::devices::rumble::{build_report, pad_windows_bt_output, RumbleCommand, RumbleRegistry};
+use crate::devices::rumble::{build_report, ensure_output_allowed, pad_windows_bt_output, RumbleCommand, RumbleRegistry, T14_OUTPUT_ENABLED};
 use hidapi::{BusType, HidApi, HidDevice};
 use std::collections::HashMap;
 use std::ffi::CString;
@@ -231,6 +231,7 @@ fn spawn_reader(
                 // adaptateurs Bluetooth peuvent accepter sans transmettre : test
                 // physique requis même si la commande HID retourne Ok.
                 let send_motors = |right: u8, left: u8| -> crate::error::AppResult<()> {
+                    ensure_output_allowed()?; // No HID writes while T14 is suspended.
                     let packet = build_report(device.transport, right, left)?;
                     if device.transport == Transport::Bluetooth {
                         // HidD_SetOutputReport échoue avec ERROR_INVALID_PARAMETER (87)
@@ -325,7 +326,7 @@ fn spawn_reader(
             // Arrêt explicite, autant que possible, à la perte de connexion
             // ou à la fermeture de l'application.
             rumble.unregister(&id);
-            if rumble_deadline.is_some() {
+            if T14_OUTPUT_ENABLED && rumble_deadline.is_some() {
                 if let Ok(output) = build_report(device.transport, 0, 0) {
                     if device.transport == Transport::Bluetooth {
                         if let Ok(padded) = pad_windows_bt_output(output, windows_bt_output_cap) {

@@ -276,7 +276,10 @@ mod tests {
         let mut held = OutputState::neutral();
         held.buttons.set(XButton::A, true);
         let report = encode(&held);
+        // Simulate a session established before the report was received,
+        // then delayed by the input queue. It must remain within the lease.
         let arrival = Instant::now() - Duration::from_millis(250);
+        session.last_input = arrival - Duration::from_millis(10);
         session.send_observed(&report, arrival).unwrap();
         assert_eq!(session.last_input, arrival);
         assert!(session.last_sent >= arrival);

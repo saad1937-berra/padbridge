@@ -52,7 +52,10 @@ export default function App() {
       <a className="skip-link" href="#main-content">Aller au contenu principal</a>
       <div className="app-shell flex h-full">
       <nav className="app-nav flex w-56 shrink-0 flex-col gap-1 border-r p-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }} aria-label="Navigation principale">
-        <div className="px-3 pb-3 pt-1 text-lg font-bold">PadBridge</div>
+        <div className="px-3 pb-3 pt-1">
+          <div className="text-lg font-bold">{PADBRIDGE_BRAND.name}</div>
+          <div className="muted text-xs">by {PADBRIDGE_BRAND.creator}</div>
+        </div>
         {NAV.map((item) => (
           <button
             key={item.id}

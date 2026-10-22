@@ -5,6 +5,8 @@
 pub mod backend;
 // Pure XINPUT_GAMEPAD state contract (NOT XUSB transport or HID driver).
 pub mod xinput_state_contract;
+// Unselected vendor-neutral Xbox provider lifecycle. No concrete driver backend.
+pub mod xbox_provider_adapter;
 pub mod null_backend;
 pub mod selected_backend;
 // Opt-in Win32 XInput API reader for isolated tests, not a selectable backend.

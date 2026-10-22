@@ -35,8 +35,35 @@ use windows_sys::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
 
 use super::broker_ipc::{self, REQUEST_LEN};
 use super::broker_auth_windows::verify_last_sender;
+use super::xbox_wire::{self, Operation, ReplyCode};
 
 pub const PIPE_NAME: &str = r"\\.\pipe\PadBridge.Broker.POC.v1";
+/// Separate endpoint: replies to Probe ONLY and never opens Xbox sessions.
+pub const XBOX_PROBE_PIPE_NAME: &str = r"\\.\pipe\PadBridge.XboxProbe.POC.v1";
+
+#[derive(Clone, Copy)]
+enum PreviewProtocol { Broker, XboxProbe }
+
+impl PreviewProtocol {
+    fn pipe_name(self) -> &'static str {
+        match self {
+            Self::Broker => PIPE_NAME,
+            Self::XboxProbe => XBOX_PROBE_PIPE_NAME,
+        }
+    }
+    fn request_len(self) -> u32 {
+        match self {
+            Self::Broker => REQUEST_LEN as u32,
+            Self::XboxProbe => xbox_wire::REQUEST_LEN as u32,
+        }
+    }
+    fn response_len(self) -> u32 {
+        match self {
+            Self::Broker => broker_ipc::RESPONSE_LEN as u32,
+            Self::XboxProbe => xbox_wire::RESPONSE_LEN as u32,
+        }
+    }
+}
 // In-process CI tests share the one-instance pipe name. Never run them concurrently.
 #[cfg(test)]
 pub(crate) static PIPE_TEST_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -86,6 +113,7 @@ impl Drop for IoEvent {
 pub struct PreviewPipe {
     handle: HANDLE,
     provisioned_user_sid: String,
+    protocol: PreviewProtocol,
 }
 
 impl PreviewPipe {
@@ -94,6 +122,19 @@ impl PreviewPipe {
     /// Unlike GR/GW, 0x00120083 does not grant FILE_CREATE_PIPE_INSTANCE.
     /// D:P = protected DACL; no access for Everyone, anonymous or network.
     pub fn bind_for_sid(provisioned_user_sid: &str) -> io::Result<Self> {
+        Self::bind_with_protocol(provisioned_user_sid, PreviewProtocol::Broker)
+    }
+
+    /// Dormant Xbox *probe-only* endpoint. Uses exactly the same Windows
+    /// ACL, remote rejection and sender token verification as the broker POC.
+    /// Does not implement Open/Submit/Close and cannot create any gamepad.
+    pub fn bind_xbox_probe_for_sid(provisioned_user_sid: &str) -> io::Result<Self> {
+        Self::bind_with_protocol(provisioned_user_sid, PreviewProtocol::XboxProbe)
+    }
+
+    fn bind_with_protocol(
+        provisioned_user_sid: &str, protocol: PreviewProtocol
+    ) -> io::Result<Self> {
         if !is_numeric_sid(provisioned_user_sid) {
             return Err(io::Error::new(io::ErrorKind::InvalidInput,
                 "an explicitly provisioned numeric user SID is required"));
@@ -118,7 +159,7 @@ impl PreviewPipe {
             bInheritHandle: 0,
         };
 
-        let pipe_name = utf16_z(PIPE_NAME);
+        let pipe_name = utf16_z(protocol.pipe_name());
         // SAFETY: Windows copies the security descriptor at pipe creation;
         // only this one server instance is allowed and remote clients are
         // rejected by the named-pipe subsystem.
@@ -129,8 +170,8 @@ impl PreviewPipe {
                 PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT |
                     PIPE_REJECT_REMOTE_CLIENTS,
                 1,
-                broker_ipc::RESPONSE_LEN as u32,
-                REQUEST_LEN as u32,
+                protocol.response_len(),
+                protocol.request_len(),
                 0,
                 &mut security,
             )
@@ -138,7 +179,7 @@ impl PreviewPipe {
         if handle == INVALID_HANDLE_VALUE {
             return Err(io::Error::last_os_error());
         }
-        Ok(Self { handle, provisioned_user_sid: provisioned_user_sid.to_owned() })
+        Ok(Self { handle, provisioned_user_sid: provisioned_user_sid.to_owned(), protocol })
     }
 
     /// Standalone preview: one bounded client message, no SCM.
@@ -244,27 +285,60 @@ impl PreviewPipe {
     }
 
     fn read_and_respond(&mut self, stop: &AtomicBool) -> io::Result<()> {
-        let mut request = [0u8; REQUEST_LEN];
-        let bytes_read = self.bounded_io(false, stop, |overlapped, count| unsafe {
+        // Exact, bounded input buffers; response always has a fixed size.
+        let mut request = [0u8; xbox_wire::REQUEST_LEN];
+        let expected = self.protocol.request_len() as usize;
+        let read = self.bounded_io(false, stop, |overlapped, count| unsafe {
             ReadFile(self.handle, request.as_mut_ptr().cast(),
-                REQUEST_LEN as u32, count, overlapped)
+                expected as u32, count, overlapped)
         })?;
+        let length = read as usize;
 
-        // Never authorize solely based on the pipe DACL or a self-reported frame.
-        // Identity is checked AFTER reading the last client message.
-        let status = if matches!(verify_last_sender(self.handle, &self.provisioned_user_sid), Ok(true)) {
-            broker_ipc::handle_dry_run(&request[..bytes_read as usize]).0
-        } else {
-            broker_ipc::Status::Unauthorized
-        };
-        let response = broker_ipc::response(status);
-        let bytes_written = self.bounded_io(false, stop, |overlapped, count| unsafe {
+        // Identity is verified *after* the last successful ReadFile. Never
+        // accept a declared SID or token from client-controlled PBXB fields.
+        let authorized = matches!(
+            verify_last_sender(self.handle, &self.provisioned_user_sid), Ok(true)
+        );
+        match self.protocol {
+            PreviewProtocol::Broker => {
+                let status = if authorized {
+                    broker_ipc::handle_dry_run(&request[..length]).0
+                } else {
+                    broker_ipc::Status::Unauthorized
+                };
+                self.write_reply(stop, &broker_ipc::response(status))
+            }
+            PreviewProtocol::XboxProbe => {
+                let (code, sequence) = match xbox_wire::decode_request(&request[..length]) {
+                    Ok(frame) => {
+                        if !authorized {
+                            (ReplyCode::Unauthorized, frame.sequence)
+                        } else if frame.operation == Operation::Probe {
+                            (ReplyCode::Ok, frame.sequence)
+                        } else {
+                            // Even a local admin or the allowed SID cannot
+                            // open, submit, or close a real controller here.
+                            (ReplyCode::Unavailable, frame.sequence)
+                        }
+                    }
+                    Err(_) => (ReplyCode::Invalid, 0),
+                };
+                let answer = xbox_wire::encode_response(xbox_wire::Response {
+                    code, sequence, handle: 0,
+                });
+                self.write_reply(stop, &answer)
+            }
+        }
+    }
+
+    fn write_reply(&self, stop: &AtomicBool, response: &[u8]) -> io::Result<()> {
+        let written = self.bounded_io(false, stop, |overlapped, count| unsafe {
             WriteFile(self.handle, response.as_ptr().cast(),
                 response.len() as u32, count, overlapped)
         })?;
-        if bytes_written != response.len() as u32 {
+        if written != response.len() as u32 {
             return Err(io::Error::new(io::ErrorKind::WriteZero,
-                "short local IPC response"));
+                "short bounded preview IPC response"));
         }
         Ok(())
     }

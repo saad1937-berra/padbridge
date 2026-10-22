@@ -51,22 +51,68 @@ impl<T: XboxTransport> XboxAdapter<T> {
     fn close_owned(&mut self, handle: u64) -> AppResult<()> {
         let neutral = validated_xinput_state(&OutputState::neutral())
             .expect("neutral is always valid");
-        // Even if neutral fails, always close. Return the first failure.
+        // Always attempt close, even if the neutral command fails.
         let neutral_result = self.transport.submit(handle, &neutral);
         let close_result = self.transport.close(handle);
-        neutral_result.and(close_result).map_err(Self::error)
+        match (neutral_result, close_result) {
+            (Ok(()), Ok(())) => Ok(()),
+            (Err(neutral), Ok(())) => Err(Self::error(format!(
+                "neutralization failed: {neutral}"
+            ))),
+            (Ok(()), Err(close)) => Err(Self::error(format!(
+                "close failed: {close}"
+            ))),
+            (Err(neutral), Err(close)) => Err(Self::error(format!(
+                "neutralization failed: {neutral}; close failed: {close}"
+            ))),
+        }
     }
 
-    fn fail_and_revoke(&mut self, session: &SessionId, handle: u64, failure: io::Error) -> AppError {
-        // An unreliable provider must never stay owned after a failed submit.
-        self.sessions.remove(&session.0);
-        let cleanup = self.close_owned(handle);
-        if let Err(cleanup) = cleanup {
-            return AppError::new(codes::BACKEND_SESSION, format!(
-                "Xbox transport failed: {failure}; cleanup also failed: {cleanup}"
-            ));
+    /// Explicitly revoke every owned session following service stop, input
+    /// disconnect or provider loss. Tries to close all sessions even if one
+    /// fails; future providers MUST provide bounded and cancellable I/O.
+    pub fn invalidate_all(&mut self) -> AppResult<()> {
+        let owned = std::mem::take(&mut self.sessions);
+        let mut failures = Vec::new();
+        for (_, active) in owned {
+            if let Err(error) = self.close_owned(active.handle) {
+                failures.push(error.to_string());
+            }
         }
-        Self::error(failure)
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(AppError::new(codes::BACKEND_SESSION, format!(
+                "{} Xbox session(s) revoked with cleanup errors: {}",
+                failures.len(), failures.join("; ")
+            )))
+        }
+    }
+
+    fn ensure_ready(&mut self) -> AppResult<()> {
+        if self.transport.is_ready() {
+            return Ok(());
+        }
+        // Provider loss must never leave another device's old session alive.
+        let cleanup = self.invalidate_all();
+        Err(AppError::new(codes::BACKEND_UNAVAILABLE, match cleanup {
+            Ok(()) => "Xbox/XUSB provider disconnected; sessions revoked".to_owned(),
+            Err(error) => format!(
+                "Xbox/XUSB provider disconnected; cleanup also failed: {error}"
+            ),
+        }))
+    }
+
+    fn fail_and_revoke(&mut self, failure: io::Error) -> AppError {
+        // Treat a write error as global transport failure: every controller
+        // sharing the same provider is revoked, not just the failed handle.
+        let cleanup = self.invalidate_all();
+        match cleanup {
+            Ok(()) => Self::error(failure),
+            Err(error) => AppError::new(codes::BACKEND_SESSION, format!(
+                "Xbox transport failed: {failure}; cleanup also failed: {error}"
+            )),
+        }
     }
 }
 
@@ -92,10 +138,7 @@ impl<T: XboxTransport> VirtualPadBackend for XboxAdapter<T> {
     }
 
     fn create(&mut self, physical_id: &str) -> AppResult<SessionId> {
-        if !self.transport.is_ready() {
-            return Err(AppError::new(codes::BACKEND_UNAVAILABLE,
-                "No verified Xbox/XUSB transport available"));
-        }
+        self.ensure_ready()?;
         if physical_id.is_empty() {
             return Err(AppError::new(codes::INVALID_ARGUMENT, "empty physical device ID"));
         }
@@ -107,6 +150,11 @@ impl<T: XboxTransport> VirtualPadBackend for XboxAdapter<T> {
             return Err(AppError::new(codes::BACKEND_SESSION,
                 "adapter reached its four-session safety cap"));
         }
+        // Never reuse an old session ID, even in an extreme counter-overflow
+        // scenario. Check before opening the provider handle.
+        let next_serial = self.serial.checked_add(1)
+            .ok_or_else(|| AppError::new(codes::BACKEND_SESSION,
+                "Xbox session ID sequence exhausted"))?;
         let handle = self.transport.open().map_err(Self::error)?;
         // Never expose a new handle before its first safe neutral command.
         let neutral = validated_xinput_state(&OutputState::neutral())
@@ -121,8 +169,8 @@ impl<T: XboxTransport> VirtualPadBackend for XboxAdapter<T> {
                 ),
             }));
         }
-        self.serial = self.serial.wrapping_add(1);
-        let session_id = SessionId(format!("xbox-adapter-{}", self.serial));
+        self.serial = next_serial;
+        let session_id = SessionId(format!("xbox-adapter-{}", next_serial));
         self.sessions.insert(session_id.0.clone(), ActiveSession {
             physical_id: physical_id.to_owned(),
             handle,
@@ -131,6 +179,9 @@ impl<T: XboxTransport> VirtualPadBackend for XboxAdapter<T> {
     }
 
     fn submit(&mut self, session: &SessionId, state: &OutputState) -> AppResult<()> {
+        // A provider that disappeared invalidates ALL existing handles before
+        // inspecting this packet or attempting any more active writes.
+        self.ensure_ready()?;
         let report = validated_xinput_state(state)
             .map_err(|err| AppError::new(codes::INVALID_ARGUMENT,
                 format!("refused invalid Xbox state: {err:?}")))?;
@@ -138,7 +189,7 @@ impl<T: XboxTransport> VirtualPadBackend for XboxAdapter<T> {
             .ok_or_else(|| AppError::new(codes::BACKEND_SESSION,
                 "unknown or revoked Xbox session"))?.handle;
         if let Err(error) = self.transport.submit(handle, &report) {
-            return Err(self.fail_and_revoke(session, handle, error));
+            return Err(self.fail_and_revoke(error));
         }
         Ok(())
     }
@@ -154,13 +205,9 @@ impl<T: XboxTransport> VirtualPadBackend for XboxAdapter<T> {
 
 impl<T: XboxTransport> Drop for XboxAdapter<T> {
     fn drop(&mut self) {
-        // Destruction releases every locally owned session best-effort.
-        // A future production transport must have bounded I/O.
-        let handles: Vec<_> = self.sessions.values().map(|active| active.handle).collect();
-        self.sessions.clear();
-        for handle in handles {
-            let _ = self.close_owned(handle);
-        }
+        // Destruction revokes all sessions, without masking cleanup failures
+        // as a successful device-level neutralization.
+        let _ = self.invalidate_all();
     }
 }
 

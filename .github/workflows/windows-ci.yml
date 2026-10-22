@@ -63,3 +63,24 @@ jobs:
         run: cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc --bin padbridge-xinput-probe -- --snapshot
       - name: Compile native Windows/Tauri integration
         run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop
+      - name: Build portable XInput snapshot diagnostic (no driver or service)
+        shell: pwsh
+        run: |
+          cargo build --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc --bin padbridge-xinput-probe
+          if ($LASTEXITCODE -ne 0) { throw "XInput read-only build failed" }
+          New-Item -ItemType Directory -Force -Path vm-xinput-kit | Out-Null
+          Copy-Item src-tauri/target/debug/padbridge-xinput-probe.exe vm-xinput-kit/
+          Copy-Item scripts/collect_vm_xinput_baseline.ps1 vm-xinput-kit/
+          Copy-Item scripts/compare_xinput_snapshots.py vm-xinput-kit/
+          Copy-Item docs/VM_XINPUT_FIRST_RUN.md vm-xinput-kit/README.md
+          Copy-Item docs/ARCHITECTURE_XINPUT_DECISION.md vm-xinput-kit/
+          (Get-FileHash vm-xinput-kit/padbridge-xinput-probe.exe -Algorithm SHA256).Hash |
+            Set-Content vm-xinput-kit/padbridge-xinput-probe.exe.sha256.txt
+      - name: Publish VM-only read-only XInput kit (no driver)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PadBridge-XInput-ReadOnly-Windows-x64
+          path: vm-xinput-kit/
+          if-no-files-found: error
+          retention-days: 7
+

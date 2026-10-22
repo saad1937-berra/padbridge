@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toApiError } from "../lib/api";
 import type { ApiError, AppSettings } from "../lib/types";
 import { ErrorNotice, Page } from "../components/Ui";
+import { PADBRIDGE_BRAND } from "../lib/branding";
 
 export function Settings({
   settings, update,

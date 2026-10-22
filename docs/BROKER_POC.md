@@ -19,7 +19,12 @@ manettes physiques, Bluetooth, Steam Input, vibrations ni au systeme hote.
   rapport neutre, valide les rapports, tente un rapport neutre en cas d'erreur
   et lors de `close()`/`Drop`. `heartbeat()` renvoie les etats actifs
   au plus toutes les 200 ms **si l'appelant l'invoque periodiquement**.
-  Un appel manquant ne peut etre compense que par le watchdog noyau de 800 ms.
+  Le cache actif n'est maintenu que si une entree fraiche a ete soumise
+  pendant les **600 ms precedentes**. Le heartbeat ne renouvelle jamais
+  ce bail ; si le flux physique se bloque, le broker tente une trame
+  neutre puis ferme la session en erreur TimedOut. Le watchdog noyau
+  de 800 ms reste le secours si l'ordonnanceur se bloque ou si l'ecriture
+  neutre echoue.
 - `vhf_broker_windows.rs` : transport optionnel Windows. Enumere le GUID
   prive `E23BD620-6064-4879-9C10-1A5D422BCC21` par SetupAPI, refuse
   une enumeration ambigue, demande une ouverture exclusive et envoie les
@@ -55,7 +60,9 @@ appels SetupAPI effectifs ni `DeviceIoControl` avec un pilote installe.
 4. Gerer l'exclusivite, la disparition du peripherique, la perte des entrees,
    l'arret du service et les expirations de bail. Le code du broker requiert
    qu'un ordonnanceur appelle `heartbeat()` periodiquement ; cet
-   ordonnanceur n'est pas implemente.
+   ordonnanceur n'est pas implemente. Le bail de 600 ms protege un
+   heartbeat uniquement lorsque cet ordonnanceur est actif ; il ne
+   garantit ni l'execution du service ni l'absence de blocage noyau.
 5. Preparer une installation INF et une signature **uniquement pour
    la VM de test**, avec point de controle et outils de debogage noyau.
    Ne pas desactiver les protections du PC principal.

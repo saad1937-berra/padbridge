@@ -206,8 +206,10 @@ VOID PbEvtFileCleanup(WDFFILEOBJECT FileObject)
     PPB_DEVICE_CONTEXT context = PbGetContext(WdfFileObjectGetDevice(FileObject));
 
     WdfWaitLockAcquire(context->ReportLock, NULL);
+    // PbSubmitNeutralLocked clears HasActiveInput ONLY after a successful
+    // VHF write. On failure, keep the active flag so the running watchdog
+    // can retry: clearing it here could leave a held button stuck forever.
     (VOID)PbSubmitNeutralLocked(context);
-    context->HasActiveInput = FALSE;
     WdfWaitLockRelease(context->ReportLock);
 }
 

@@ -13,7 +13,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, ReadFile, WriteFile, FILE_FLAG_OVERLAPPED, OPEN_EXISTING,
 };
 use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
-use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
+use windows_sys::Win32::System::Pipes::{GetNamedPipeServerProcessId, WaitNamedPipeW};
 use windows_sys::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
 
 use super::broker_ipc::{self, Command, Status, RESPONSE_LEN};
@@ -94,8 +94,33 @@ fn exchange_io(handle: HANDLE, buf: &mut [u8], writing: bool) -> io::Result<usiz
 pub(crate) fn exchange_existing_endpoint(
     pipe_name: &str, request: &mut [u8], response: &mut [u8]
 ) -> io::Result<()> {
-    // This is an opt-in preview client only. Callers must supply their own
-    // constant pipe name and restrict which requests are sent.
+    exchange_existing_endpoint_with_owner(pipe_name, request, response, None)
+}
+
+/// Strictly check the pipe owner's PID BEFORE writing any PBXB request.
+/// The expected PID must be supplied by independently trusted provisioning;
+/// calling GetNamedPipeServerProcessId does not authenticate an installer or
+/// a signed Windows service by itself. Never derive the expected PID from
+/// the untrusted pipe endpoint or the PBXB reply.
+pub(crate) fn exchange_existing_endpoint_for_pid(
+    pipe_name: &str, request: &mut [u8], response: &mut [u8],
+    expected_server_pid: u32,
+) -> io::Result<()> {
+    if expected_server_pid == 0 {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput,
+            "a trusted, nonzero Xbox preview server PID is required"));
+    }
+    exchange_existing_endpoint_with_owner(
+        pipe_name, request, response, Some(expected_server_pid)
+    )
+}
+
+fn exchange_existing_endpoint_with_owner(
+    pipe_name: &str, request: &mut [u8], response: &mut [u8],
+    expected_server_pid: Option<u32>,
+) -> io::Result<()> {
+    // This opt-in preview client only. Callers must supply a hardcoded,
+    // local pipe and constrain the operation independently.
     let pipe = wide_z(pipe_name);
     if unsafe { WaitNamedPipeW(pipe.as_ptr(), PIPE_CONNECT_TIMEOUT_MS) } == 0 {
         return Err(io::Error::last_os_error());
@@ -110,6 +135,18 @@ pub(crate) fn exchange_existing_endpoint(
         return Err(io::Error::last_os_error());
     }
     let handle = OwnedHandle(raw);
+    if let Some(expected_pid) = expected_server_pid {
+        let mut actual_pid = 0u32;
+        // SAFETY: the handle is an open local named-pipe client handle and
+        // actual_pid is writable storage. No bytes are sent to the server.
+        if unsafe { GetNamedPipeServerProcessId(handle.0, &mut actual_pid) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if actual_pid == 0 || actual_pid != expected_pid {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied,
+                "the named pipe belongs to an unexpected Xbox preview process"));
+        }
+    }
     if exchange_io(handle.0, request, true)? != request.len() {
         return Err(io::Error::new(io::ErrorKind::WriteZero, "partial IPC request"));
     }
@@ -140,7 +177,7 @@ mod tests {
         GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER,
     };
     use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
-    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetCurrentProcessId, OpenProcessToken};
 
     fn current_user_sid() -> io::Result<String> {
         let mut raw_token = ptr::null_mut();
@@ -206,7 +243,9 @@ mod tests {
         match server {
             Ok(()) => {}
             Err(error) if allow_no_connection
-                && error.kind() == io::ErrorKind::TimedOut => {}
+                && matches!(error.kind(), io::ErrorKind::TimedOut
+                    | io::ErrorKind::BrokenPipe | io::ErrorKind::NotConnected
+                    | io::ErrorKind::ConnectionAborted | io::ErrorKind::UnexpectedEof) => {}
             Err(error) => return Err(error),
         }
         result
@@ -217,7 +256,7 @@ mod tests {
         let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
         let sid = current_user_sid().expect("runner SID");
         one_shot_xbox_preview(sid, false, || {
-            super::super::xbox_probe_client_windows::probe_existing_xbox_preview()
+            super::super::xbox_probe_client_windows::probe_existing_xbox_preview(unsafe { GetCurrentProcessId() })
         }).expect("read-only Xbox preview Probe");
     }
 
@@ -277,10 +316,32 @@ mod tests {
             "S-1-5-21-1-2-3-99999".to_owned(), true,
             || {
                 assert!(super::super::xbox_probe_client_windows::
-                    probe_existing_xbox_preview().is_err());
+                    probe_existing_xbox_preview(unsafe { GetCurrentProcessId() }).is_err());
                 Ok(())
             },
         ).expect("reject unexpected SID");
+    }
+
+    #[test]
+    fn xbox_probe_rejects_wrong_server_pid_before_any_frame_is_sent() {
+        let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
+        let sid = current_user_sid().expect("runner token SID");
+        let actual = unsafe { GetCurrentProcessId() };
+        let wrong = actual ^ 1;
+        assert_ne!(actual, wrong);
+        one_shot_xbox_preview(sid, true, || {
+            let error = super::super::xbox_probe_client_windows::
+                probe_existing_xbox_preview(wrong).unwrap_err();
+            assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+            Ok(())
+        }).expect("expected server PID mismatch must reject before sending");
+    }
+
+    #[test]
+    fn xbox_probe_requires_nonzero_server_pid_without_connecting() {
+        let error = super::super::xbox_probe_client_windows::
+            probe_existing_xbox_preview(0).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
     }
 
     #[test]

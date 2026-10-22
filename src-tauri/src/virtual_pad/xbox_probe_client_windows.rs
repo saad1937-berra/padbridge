@@ -10,18 +10,22 @@
 
 use std::io;
 
-use super::broker_client_windows::exchange_existing_endpoint;
+use super::broker_client_windows::exchange_existing_endpoint_for_pid;
 use super::broker_pipe_windows::XBOX_PROBE_PIPE_NAME;
 use super::xbox_wire::{self, Operation, ReplyCode, Request, RESPONSE_LEN};
 
 /// Check that an already-running local preview accepts a read-only Probe.
+/// A *trusted* source must provide the expected server PID (not the pipe or
+/// its response). A PID check is not proof of code signature or service origin.
 /// This does NOT imply a usable Xbox provider, XInput slot or installed driver.
-pub fn probe_existing_xbox_preview() -> io::Result<()> {
+pub fn probe_existing_xbox_preview(expected_server_pid: u32) -> io::Result<()> {
     let mut request = xbox_wire::encode_request(Request {
         operation: Operation::Probe, handle: 0, sequence: 1, state: [0; 12],
     })?;
     let mut response = [0u8; RESPONSE_LEN];
-    exchange_existing_endpoint(XBOX_PROBE_PIPE_NAME, &mut request, &mut response)?;
+    exchange_existing_endpoint_for_pid(
+        XBOX_PROBE_PIPE_NAME, &mut request, &mut response, expected_server_pid,
+    )?;
     let status = xbox_wire::decode_response(&response)?;
     if status.sequence != 1 || status.handle != 0 {
         return Err(io::Error::new(io::ErrorKind::InvalidData,

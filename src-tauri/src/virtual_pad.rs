@@ -12,8 +12,8 @@ pub mod xinput_probe_windows;
 pub mod vhf_protocol;
 // Coeur de broker testable, inactif tant qu'aucun service privilegie n'existe.
 pub mod vhf_broker;
-// Opt-in executor POC for a future broker. Compiled in Rust tests; not
-// created by selected_backend, the frontend or any Windows service.
+// Opt-in executor POC: in tests and neutral-only SCM dry-run preview.
+// Never created by selected_backend or the frontend; no driver access.
 #[cfg(any(test, feature = "broker-service-poc"))]
 pub mod broker_worker;
 // Protocol v1 IPC (aucun acces materiel, tests deterministes).

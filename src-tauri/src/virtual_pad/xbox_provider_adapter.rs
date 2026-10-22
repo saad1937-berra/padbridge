@@ -245,6 +245,9 @@ mod tests {
                 return Err(io::Error::new(io::ErrorKind::NotConnected, "unknown handle"));
             }
             s.messages.push((handle, "submit", Some(*state)));
+            if !s.ready {
+                return Err(io::Error::new(io::ErrorKind::NotConnected, "provider offline"));
+            }
             if s.fail_next_submit {
                 s.fail_next_submit = false;
                 return Err(io::Error::new(io::ErrorKind::BrokenPipe, "simulated submit failure"));
@@ -363,5 +366,100 @@ mod tests {
         let state = trace.lock().unwrap();
         assert!(state.live.is_empty());
         assert_eq!(state.messages.iter().filter(|m| m.1 == "close").count(), 2);
+    }
+
+    #[test]
+    fn lost_provider_revokes_every_session_even_when_neutral_fails() {
+        let (mut adapter, trace) = rig(true);
+        let old_a = adapter.create("a").unwrap();
+        let old_b = adapter.create("b").unwrap();
+        adapter.submit(&old_a, &pressed()).unwrap();
+        trace.lock().unwrap().ready = false;
+        assert!(!adapter.status().available);
+        // Offline neutral commands fail, but both close operations must run.
+        let error = adapter.submit(&old_a, &pressed()).unwrap_err();
+        assert_eq!(error.code, codes::BACKEND_UNAVAILABLE);
+        assert!(error.detail.contains("cleanup also failed"));
+        let state = trace.lock().unwrap();
+        assert!(state.live.is_empty());
+        assert_eq!(state.messages.iter().filter(|x| x.1 == "close").count(), 2);
+        drop(state);
+
+        trace.lock().unwrap().ready = true;
+        let new_id = adapter.create("a").unwrap();
+        assert_ne!(new_id.0, old_a.0);
+        assert_eq!(adapter.submit(&old_b, &pressed()).unwrap_err().code,
+                   codes::BACKEND_SESSION);
+        assert!(adapter.submit(&new_id, &pressed()).is_ok());
+        adapter.invalidate_all().unwrap();
+        assert!(trace.lock().unwrap().live.is_empty());
+    }
+
+    #[test]
+    fn one_active_submit_error_invalidates_all_controller_handles() {
+        let (mut adapter, trace) = rig(true);
+        let a = adapter.create("one").unwrap();
+        let b = adapter.create("two").unwrap();
+        trace.lock().unwrap().fail_next_submit = true;
+        assert_eq!(adapter.submit(&a, &pressed()).unwrap_err().code, codes::BACKEND_SESSION);
+        assert!(trace.lock().unwrap().live.is_empty());
+        assert_eq!(trace.lock().unwrap().messages.iter()
+                   .filter(|m| m.1 == "close").count(), 2);
+        assert_eq!(adapter.submit(&b, &pressed()).unwrap_err().code,
+                   codes::BACKEND_SESSION);
+    }
+
+    #[test]
+    fn explicit_stop_releases_every_session_and_is_idempotent() {
+        let (mut adapter, trace) = rig(true);
+        adapter.create("a").unwrap();
+        adapter.create("b").unwrap();
+        adapter.invalidate_all().unwrap();
+        let n = trace.lock().unwrap().messages.len();
+        adapter.invalidate_all().unwrap();
+        assert_eq!(trace.lock().unwrap().messages.len(), n);
+        assert!(trace.lock().unwrap().live.is_empty());
+    }
+
+    #[test]
+    fn neutral_and_close_errors_are_both_reported_and_other_handles_closed() {
+        let (mut adapter, trace) = rig(true);
+        adapter.create("a").unwrap();
+        adapter.create("b").unwrap();
+        {
+            let mut state = trace.lock().unwrap();
+            state.fail_next_submit = true;
+            state.fail_next_close = true;
+        }
+        let error = adapter.invalidate_all().unwrap_err();
+        assert!(error.detail.contains("neutralization failed"));
+        assert!(error.detail.contains("close failed"));
+        assert!(trace.lock().unwrap().live.is_empty());
+        assert_eq!(trace.lock().unwrap().messages.iter()
+                   .filter(|m| m.1 == "close").count(), 2);
+    }
+
+    #[test]
+    fn exhausted_session_counter_fails_before_new_device_open() {
+        let (mut adapter, trace) = rig(true);
+        let _ = adapter.create("one").unwrap();
+        adapter.serial = u64::MAX;
+        let old_messages = trace.lock().unwrap().messages.len();
+        assert_eq!(adapter.create("two").unwrap_err().code, codes::BACKEND_SESSION);
+        assert_eq!(trace.lock().unwrap().messages.len(), old_messages);
+        drop(adapter);
+        assert!(trace.lock().unwrap().live.is_empty());
+    }
+
+    #[test]
+    fn provider_disconnected_before_invalid_input_also_revokes_handles() {
+        let (mut adapter, trace) = rig(true);
+        let id = adapter.create("one").unwrap();
+        trace.lock().unwrap().ready = false;
+        let mut invalid = OutputState::neutral();
+        invalid.lx = f32::NAN;
+        assert_eq!(adapter.submit(&id, &invalid).unwrap_err().code,
+                   codes::BACKEND_UNAVAILABLE);
+        assert!(trace.lock().unwrap().live.is_empty());
     }
 }

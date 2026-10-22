@@ -40,6 +40,11 @@ path = "src/bin/padbridge-broker-preview.rs"
 required-features = ["broker-service-poc"]
 
 [[bin]]
+name = "padbridge-broker-probe"
+path = "src/bin/padbridge-broker-probe.rs"
+required-features = ["broker-service-poc"]
+
+[[bin]]
 name = "padbridge-broker-scm"
 path = "src/bin/padbridge-broker-scm.rs"
 required-features = ["broker-scm-poc"]

@@ -2,7 +2,7 @@
 
 Application Windows (Tauri 2 + React/TypeScript + moteur Rust) pour détecter, tester et configurer des manettes DualShock 4 / DualSense. Ce socle couvre les lots 1 et 2 du cahier des charges. Le mode XInput est branché derrière l'interface `VirtualPadBackend` ; tant qu'aucun backend n'est validé (POC B), il reste **indisponible** et l'application fonctionne en mode natif / diagnostic.
 
-Projet indépendant, non affilié à Sony ni à Microsoft. Nom de travail provisoire.
+**PadBridge by Saad Berra** — logiciel développé par [Saad Berra](https://github.com/saad1937-berra). Projet indépendant, non affilié à Sony ni à Microsoft. Nom de travail provisoire.
 
 **Objectif de distribution : PadBridge doit être gratuit et téléchargeable par tous.** Aucune licence payante ni création de compte ne devra être imposée aux utilisateurs. Ce choix concerne le produit final, **pas sa disponibilité actuelle** : le mode Xbox/XInput réel reste absent, aucune version publique complète n'est autorisée et la licence du code source n'est pas encore arrêtée. Consultez [la politique de diffusion](docs/PUBLIC_FREE_RELEASE_POLICY.md) et le [statut d'audit Xbox](docs/XBOX_PROVIDER_SELECTION_AUDIT.md).
 

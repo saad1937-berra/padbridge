@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toApiError } from "../lib/api";
 import type { ApiError, AppSettings } from "../lib/types";
 import { ErrorNotice, Page } from "../components/Ui";
+import { PADBRIDGE_BRAND } from "../lib/branding";
 
 export function Settings({
   settings, update,
@@ -73,6 +74,14 @@ export function Settings({
         <div>
           <button className="btn" onClick={() => void apply({ ...settings, onboardingDone: false })}>Réafficher l'écran de bienvenue</button>
         </div>
+      </section>
+
+      <section className="card flex flex-col gap-2" aria-label="À propos de PadBridge">
+        <h2>À propos de PadBridge</h2>
+        <p className="m-0 font-semibold">{PADBRIDGE_BRAND.byline}</p>
+        <p className="muted m-0 text-sm">{PADBRIDGE_BRAND.projectStatus}</p>
+        <p className="muted m-0 text-xs">{PADBRIDGE_BRAND.independence}</p>
+        <p className="muted m-0 text-xs">Auteur sur GitHub : @{PADBRIDGE_BRAND.creatorGitHub}</p>
       </section>
     </Page>
   );

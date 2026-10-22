@@ -9,6 +9,7 @@ import { Profiles } from "./screens/Profiles";
 import { Compatibility } from "./screens/Compatibility";
 import { Diagnostics } from "./screens/Diagnostics";
 import { Settings } from "./screens/Settings";
+import { PADBRIDGE_BRAND } from "./lib/branding";
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: "home", label: "Accueil", icon: "⌂" },
@@ -51,7 +52,10 @@ export default function App() {
       <a className="skip-link" href="#main-content">Aller au contenu principal</a>
       <div className="app-shell flex h-full">
       <nav className="app-nav flex w-56 shrink-0 flex-col gap-1 border-r p-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }} aria-label="Navigation principale">
-        <div className="px-3 pb-3 pt-1 text-lg font-bold">PadBridge</div>
+        <div className="px-3 pb-3 pt-1">
+          <div className="text-lg font-bold">{PADBRIDGE_BRAND.name}</div>
+          <div className="muted text-xs">by {PADBRIDGE_BRAND.creator}</div>
+        </div>
         {NAV.map((item) => (
           <button
             key={item.id}
@@ -65,7 +69,7 @@ export default function App() {
           </button>
         ))}
         <p className="muted mt-auto px-3 text-xs">
-          Projet indépendant, non affilié à Sony ni à Microsoft.
+          {PADBRIDGE_BRAND.independence}
         </p>
       </nav>
 

@@ -25,7 +25,12 @@ pub mod broker_config_windows;
 #[cfg(all(windows, feature = "broker-poc"))]
 pub mod vhf_broker_windows;
 
-/// Backend de test en mémoire : permet de vérifier les invariants (PB-010, PB-018).
+/// End-to-end DS4 HID -> mapping -> in-memory broker -> 10-byte VHF wire.
+// Tests only, never linked into the Tauri app or selected backend.
+#[cfg(test)]
+mod loopback_poc;
+
+// Backend de test en mémoire : permet de vérifier les invariants (PB-010, PB-018).
 #[cfg(test)]
 pub mod mock {
     use super::backend::*;

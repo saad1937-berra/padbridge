@@ -91,12 +91,15 @@ fn exchange_io(handle: HANDLE, buf: &mut [u8], writing: bool) -> io::Result<usiz
 ///
 /// No path or command argument is accepted; the only target is the constant
 /// local PadBridge pipe. The server checks Windows token identity separately.
-pub fn ping_existing_broker() -> io::Result<Status> {
-    let pipe = wide_z(PIPE_NAME);
+pub(crate) fn exchange_existing_endpoint(
+    pipe_name: &str, request: &mut [u8], response: &mut [u8]
+) -> io::Result<()> {
+    // This is an opt-in preview client only. Callers must supply their own
+    // constant pipe name and restrict which requests are sent.
+    let pipe = wide_z(pipe_name);
     if unsafe { WaitNamedPipeW(pipe.as_ptr(), PIPE_CONNECT_TIMEOUT_MS) } == 0 {
         return Err(io::Error::last_os_error());
     }
-
     let raw = unsafe {
         CreateFileW(
             pipe.as_ptr(), MINIMUM_PIPE_CLIENT_ACCESS, 0, ptr::null_mut(),
@@ -107,19 +110,24 @@ pub fn ping_existing_broker() -> io::Result<Status> {
         return Err(io::Error::last_os_error());
     }
     let handle = OwnedHandle(raw);
+    if exchange_io(handle.0, request, true)? != request.len() {
+        return Err(io::Error::new(io::ErrorKind::WriteZero, "partial IPC request"));
+    }
+    if exchange_io(handle.0, response, false)? != response.len() {
+        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "partial IPC response"));
+    }
+    Ok(())
+}
 
-    // The one-shot POC server disconnects after a single message.
+/// Sends only PING to the first-party, read-only broker endpoint.
+pub fn ping_existing_broker() -> io::Result<Status> {
     let mut request = broker_ipc::encode_request(Command::Ping);
-    if exchange_io(handle.0, &mut request, true)? != request.len() {
-        return Err(io::Error::new(io::ErrorKind::WriteZero, "partial PING frame"));
-    }
     let mut reply = [0u8; RESPONSE_LEN];
-    if exchange_io(handle.0, &mut reply, false)? != reply.len() {
-        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "partial PING response"));
-    }
+    exchange_existing_endpoint(PIPE_NAME, &mut request, &mut reply)?;
     broker_ipc::decode_response(&reply)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData,
             format!("invalid broker IPC response: {error:?}")))
+
 }
 
 #[cfg(test)]

@@ -27,6 +27,9 @@ pub mod broker_ipc;
 // Windows-only opt-in PING probe, no driver access or Tauri hooks.
 #[cfg(all(windows, feature = "broker-service-poc"))]
 pub mod broker_client_windows;
+// Authenticated read-only PBXB Probe client (no driver or Xbox session).
+#[cfg(all(windows, feature = "broker-service-poc"))]
+pub mod xbox_probe_client_windows;
 #[cfg(all(windows, feature = "broker-service-poc"))]
 pub mod broker_pipe_windows;
 #[cfg(all(windows, feature = "broker-service-poc"))]

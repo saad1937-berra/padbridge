@@ -63,6 +63,8 @@ jobs:
         run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop,broker-poc
       - name: Test local broker IPC protocol and Windows ACL-only preview
         run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc
+      - name: Probe Xbox IPC over authenticated live Windows named pipe (no driver)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc xbox_probe
       - name: Compile preview pipe host (no install or driver access)
         run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc --bin padbridge-broker-preview
       - name: Compile PING-only local broker client (no service or driver)

@@ -91,12 +91,15 @@ fn exchange_io(handle: HANDLE, buf: &mut [u8], writing: bool) -> io::Result<usiz
 ///
 /// No path or command argument is accepted; the only target is the constant
 /// local PadBridge pipe. The server checks Windows token identity separately.
-pub fn ping_existing_broker() -> io::Result<Status> {
-    let pipe = wide_z(PIPE_NAME);
+pub(crate) fn exchange_existing_endpoint(
+    pipe_name: &str, request: &mut [u8], response: &mut [u8]
+) -> io::Result<()> {
+    // This is an opt-in preview client only. Callers must supply their own
+    // constant pipe name and restrict which requests are sent.
+    let pipe = wide_z(pipe_name);
     if unsafe { WaitNamedPipeW(pipe.as_ptr(), PIPE_CONNECT_TIMEOUT_MS) } == 0 {
         return Err(io::Error::last_os_error());
     }
-
     let raw = unsafe {
         CreateFileW(
             pipe.as_ptr(), MINIMUM_PIPE_CLIENT_ACCESS, 0, ptr::null_mut(),
@@ -107,19 +110,24 @@ pub fn ping_existing_broker() -> io::Result<Status> {
         return Err(io::Error::last_os_error());
     }
     let handle = OwnedHandle(raw);
+    if exchange_io(handle.0, request, true)? != request.len() {
+        return Err(io::Error::new(io::ErrorKind::WriteZero, "partial IPC request"));
+    }
+    if exchange_io(handle.0, response, false)? != response.len() {
+        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "partial IPC response"));
+    }
+    Ok(())
+}
 
-    // The one-shot POC server disconnects after a single message.
+/// Sends only PING to the first-party, read-only broker endpoint.
+pub fn ping_existing_broker() -> io::Result<Status> {
     let mut request = broker_ipc::encode_request(Command::Ping);
-    if exchange_io(handle.0, &mut request, true)? != request.len() {
-        return Err(io::Error::new(io::ErrorKind::WriteZero, "partial PING frame"));
-    }
     let mut reply = [0u8; RESPONSE_LEN];
-    if exchange_io(handle.0, &mut reply, false)? != reply.len() {
-        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "partial PING response"));
-    }
+    exchange_existing_endpoint(PIPE_NAME, &mut request, &mut reply)?;
     broker_ipc::decode_response(&reply)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData,
             format!("invalid broker IPC response: {error:?}")))
+
 }
 
 #[cfg(test)]
@@ -177,6 +185,102 @@ mod tests {
         };
         unsafe { LocalFree(sid_ptr.cast::<c_void>()); }
         sid
+    }
+
+    // These tests run only on disposable GitHub Windows CI. They do not
+    // install a driver or service and never emit an active controller state.
+    fn one_shot_xbox_preview(
+        sid: String, allow_no_connection: bool,
+        action: impl FnOnce() -> io::Result<()>
+    ) -> io::Result<()> {
+        let (ready, received) = mpsc::sync_channel(1);
+        let worker = thread::spawn(move || -> io::Result<()> {
+            let mut server = PreviewPipe::bind_xbox_probe_for_sid(&sid)?;
+            ready.send(()).map_err(|_| io::Error::other("receiver gone"))?;
+            server.serve_one_message()
+        });
+        received.recv_timeout(Duration::from_secs(4))
+            .expect("Xbox preview endpoint ready");
+        let result = action();
+        let server = worker.join().expect("Xbox preview thread");
+        match server {
+            Ok(()) => {}
+            Err(error) if allow_no_connection
+                && error.kind() == io::ErrorKind::TimedOut => {}
+            Err(error) => return Err(error),
+        }
+        result
+    }
+
+    #[test]
+    fn authenticated_real_windows_xbox_probe_never_creates_a_controller() {
+        let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
+        let sid = current_user_sid().expect("runner SID");
+        one_shot_xbox_preview(sid, false, || {
+            super::super::xbox_probe_client_windows::probe_existing_xbox_preview()
+        }).expect("read-only Xbox preview Probe");
+    }
+
+    #[test]
+    fn even_authorized_xbox_open_is_denied_by_windows_preview() {
+        use super::super::xbox_wire::{
+            self, Operation, ReplyCode, Request, RESPONSE_LEN,
+        };
+        use super::super::broker_pipe_windows::XBOX_PROBE_PIPE_NAME;
+        let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
+        let sid = current_user_sid().expect("runner SID");
+        one_shot_xbox_preview(sid, false, || {
+            let mut request = xbox_wire::encode_request(Request {
+                operation: Operation::Open,
+                handle: 0, sequence: 7, state: [0; 12],
+            })?;
+            let mut response = [0u8; RESPONSE_LEN];
+            exchange_existing_endpoint(XBOX_PROBE_PIPE_NAME, &mut request, &mut response)?;
+            let reply = xbox_wire::decode_response(&response)?;
+            assert_eq!(reply.code, ReplyCode::Unavailable);
+            assert_eq!(reply.sequence, 7);
+            assert_eq!(reply.handle, 0);
+            Ok(())
+        }).expect("refuse unapproved Open");
+    }
+
+    #[test]
+    fn malformed_xbox_probe_cannot_activate_a_provider() {
+        use super::super::xbox_wire::{
+            self, Operation, ReplyCode, Request, RESPONSE_LEN,
+        };
+        use super::super::broker_pipe_windows::XBOX_PROBE_PIPE_NAME;
+        let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
+        let sid = current_user_sid().expect("runner SID");
+        one_shot_xbox_preview(sid, false, || {
+            let mut request = xbox_wire::encode_request(Request {
+                operation: Operation::Probe,
+                handle: 0, sequence: 8, state: [0; 12],
+            })?;
+            request[4] = 9; // incompatible protocol version
+            let mut response = [0u8; RESPONSE_LEN];
+            exchange_existing_endpoint(XBOX_PROBE_PIPE_NAME, &mut request, &mut response)?;
+            let reply = xbox_wire::decode_response(&response)?;
+            assert_eq!(reply.code, ReplyCode::Invalid);
+            assert_eq!(reply.sequence, 0);
+            assert_eq!(reply.handle, 0);
+            Ok(())
+        }).expect("reject malformed Probe");
+    }
+
+    #[test]
+    fn unexpected_windows_sender_sid_is_not_accepted_for_xbox_probe() {
+        let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
+        // This is not our current token SID. Depending on admin privileges,
+        // either CreateFile is denied by DACL or token impersonation rejects.
+        one_shot_xbox_preview(
+            "S-1-5-21-1-2-3-99999".to_owned(), true,
+            || {
+                assert!(super::super::xbox_probe_client_windows::
+                    probe_existing_xbox_preview().is_err());
+                Ok(())
+            },
+        ).expect("reject unexpected SID");
     }
 
     #[test]

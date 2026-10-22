@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "product": "PadBridge",
+  "distribution": "free_public",
+  "price_usd": 0,
+  "user_account_required": false,
+  "license_key_required": false,
+  "optional_donation_allowed": true,
+  "app_source_license": "undecided",
+  "release_status": "blocked_pending_verification",
+  "public_release_allowed": false,
+  "verified_xinput_backend": false,
+  "xinput_backend_selected": "none",
+  "backend_driver_bundled": false,
+  "automatic_driver_install": false,
+  "bundled_third_party_driver_packages": [],
+  "driver_redistribution_rights_verified": false,
+  "windows_driver_installation_verified": false,
+  "release_blockers": [
+    "Select and verify a freely usable, legally redistributable XInput/XUSB backend.",
+    "Verify third-party licenses and document PadBridge's own distribution/source license.",
+    "Validate driver provenance, signatures, installation, removal and Windows compatibility.",
+    "Verify XInput controller identity, safety and game behavior in an isolated test environment."
+  ]
+}

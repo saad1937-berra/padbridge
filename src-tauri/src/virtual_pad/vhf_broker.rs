@@ -72,6 +72,23 @@ impl<T: ReportTransport> BrokerSession<T> {
         }
     }
 
+    /// Submit a producer packet with its original arrival timestamp.
+    /// Future IPC MUST assign this timestamp server-side after authentication.
+    /// A queued packet cannot reset the input lease merely by being processed late.
+    pub(crate) fn send_observed(&mut self, report: &Report, observed_at: Instant) -> io::Result<()> {
+        if self.closed {
+            return Err(io::Error::new(io::ErrorKind::BrokenPipe, "broker session closed"));
+        }
+        if observed_at < self.last_input || observed_at.elapsed() >= INPUT_LEASE {
+            let _ = self.close();
+            return Err(io::Error::new(io::ErrorKind::TimedOut,
+                "stale or out-of-order producer report rejected"));
+        }
+        self.send_validated(report)?;
+        self.last_input = observed_at;
+        Ok(())
+    }
+
     /// Keep an active report alive only while the original input stream is fresh.
     ///
     /// Re-sending the cached report must NEVER extend the input lease: otherwise
@@ -251,6 +268,35 @@ mod tests {
         session.heartbeat().unwrap();
         assert!(!session.is_closed());
         assert_eq!(log.lock().unwrap().reports.len(), 3);
+    }
+
+    #[test]
+    fn queued_input_uses_original_arrival_not_processing_timestamp() {
+        let (mut session, log) = setup();
+        let mut held = OutputState::neutral();
+        held.buttons.set(XButton::A, true);
+        let report = encode(&held);
+        // Simulate a session established before the report was received,
+        // then delayed by the input queue. It must remain within the lease.
+        let arrival = Instant::now() - Duration::from_millis(250);
+        session.last_input = arrival - Duration::from_millis(10);
+        session.send_observed(&report, arrival).unwrap();
+        assert_eq!(session.last_input, arrival);
+        assert!(session.last_sent >= arrival);
+        assert_eq!(log.lock().unwrap().reports.len(), 2);
+    }
+
+    #[test]
+    fn expired_queued_input_never_reaches_transport() {
+        let (mut session, log) = setup();
+        let mut held = OutputState::neutral();
+        held.buttons.set(XButton::A, true);
+        let report = encode(&held);
+        let stale = Instant::now() - INPUT_LEASE - Duration::from_millis(1);
+        let error = session.send_observed(&report, stale).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::TimedOut);
+        assert!(session.is_closed());
+        assert!(log.lock().unwrap().reports.iter().all(|frame| frame[1] == 0));
     }
 
     #[test]

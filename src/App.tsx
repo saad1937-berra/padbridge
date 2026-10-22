@@ -9,6 +9,7 @@ import { Profiles } from "./screens/Profiles";
 import { Compatibility } from "./screens/Compatibility";
 import { Diagnostics } from "./screens/Diagnostics";
 import { Settings } from "./screens/Settings";
+import { PADBRIDGE_BRAND } from "./lib/branding";
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: "home", label: "Accueil", icon: "⌂" },

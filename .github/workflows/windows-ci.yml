@@ -22,6 +22,19 @@ jobs:
           workspaces: src-tauri -> target
       - name: Validate VHF HID descriptor and C/Rust wire contract (no driver)
         run: python scripts/verify_vhf_contract.py --self-test
+      - name: Validate VM XInput evidence comparison without hardware
+        run: python scripts/compare_xinput_snapshots.py --self-test
+      - name: Parse Hyper-V evidence collector (never execute it on CI)
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "scripts/collect_vm_xinput_baseline.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -ne 0) { throw ($errors | Out-String) }
       - name: Install frontend dependencies
         run: npm ci
       - name: Check TypeScript and bundle frontend

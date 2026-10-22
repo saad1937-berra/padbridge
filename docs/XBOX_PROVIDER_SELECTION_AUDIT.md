@@ -37,6 +37,18 @@ Propriétés testées sur un transport **en mémoire** :
 
 **Limites :** si le transport futur est bloquant ou ne répond pas au neutre, cet adaptateur ne peut pas garantir la libération des boutons. Le transport réel exigera annulation, timeouts, synchronisation, contrôle de signature/provenance et validation système isolée.
 
+## Durcissement avant un transport réel : perte fournisseur et sécurité
+
+Le contrat `XboxAdapter<T>` traite désormais une erreur de soumission comme une **panne globale du transport partagé** : toutes les sessions sont révoquées, et chaque poignée subit une tentative de rapport neutre puis de fermeture. L'adaptateur essaie toujours les autres fermetures, même quand une neutralisation ou une fermeture précédente échoue ; les deux causes sont rapportées si elles échouent ensemble.
+
+- `invalidate_all()` est une opération explicite et idempotente pour l'arrêt de service, la déconnexion de la source physique ou la perte du fournisseur.
+- `create()` et `submit()` contrôlent la disponibilité du fournisseur et révoquent les anciennes sessions s'il n'est plus prêt.
+- Les identifiants de session augmentent sans retour à zéro silencieux : en cas d'épuisement du compteur, l'ouverture est refusée **avant** toute nouvelle poignée.
+- La reconnexion exige une **nouvelle session** : aucun ancien identifiant ne peut réutiliser silencieusement une poignée après une coupure.
+- Les tests en mémoire injectent perte de fournisseur, échec de neutralisation et fermeture, panne sur une session parmi deux, arrêt répété et compteur épuisé.
+
+**Limite fondamentale :** aucun appel à `is_ready()` ne peut détecter à lui seul une panne silencieuse si l'adaptateur est inactif. Le futur broker devra recevoir un signal d'arrêt/déconnexion fiable, vérifier périodiquement la santé du transport avec des opérations bornées, et imposer un watchdog indépendant capable de neutraliser les commandes même si le processus client tombe. Un `close()` qui échoue peut laisser un périphérique réel actif : nos tests ne démontrent que les **tentatives de nettoyage**. Ceci reste du code Rust sans pilote XUSB sélectionné ni entrées de jeux.
+
 ## Décision de mise en production
 
 `selected_backend.rs` reste sur `NullBackend`. Aucune dépendance propriétaire, téléchargement MSI, installation ou activation de licence n'est autorisée dans ce lot. Le prochain choix doit être fait après clarification directe des conditions de distribution auprès du fournisseur et tests dans un environnement isolé disponible. Les tests de ce module sont un contrat d'intégration, **pas une manette Xbox fonctionnelle sous Windows**.

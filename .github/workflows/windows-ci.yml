@@ -45,6 +45,8 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features xinput_state_contract
       - name: Test DS4 to Xbox state on in-memory backend only
         run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features xinput_state_loopback
+      - name: Verify vendor-neutral Xbox provider lifecycle (no installed driver)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features xbox_provider_adapter
       - name: Test dormant broker protocol and simulated sessions
         run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-poc
       - name: Compile Windows Tauri with opt-in broker transport

@@ -129,10 +129,10 @@ mod tests {
     use std::{ffi::c_void, sync::mpsc, thread, time::Duration};
     use windows_sys::Win32::Foundation::{LocalFree, ERROR_INSUFFICIENT_BUFFER};
     use windows_sys::Win32::Security::{
-        GetTokenInformation, OpenProcessToken, TokenUser, TOKEN_QUERY, TOKEN_USER,
+        GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER,
     };
     use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
-    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
     fn current_user_sid() -> io::Result<String> {
         let mut raw_token = ptr::null_mut();

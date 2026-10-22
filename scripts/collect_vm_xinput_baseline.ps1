@@ -12,7 +12,7 @@ param(
 
     [string]$ProbePath = '',
 
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\vm-evidence')
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot 'vm-evidence')
 )
 
 Set-StrictMode -Version Latest

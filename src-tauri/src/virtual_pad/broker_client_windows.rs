@@ -256,7 +256,7 @@ mod tests {
         let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
         let sid = current_user_sid().expect("runner SID");
         one_shot_xbox_preview(sid, false, || {
-            super::super::xbox_probe_client_windows::probe_existing_xbox_preview(GetCurrentProcessId())
+            super::super::xbox_probe_client_windows::probe_existing_xbox_preview(unsafe { GetCurrentProcessId() })
         }).expect("read-only Xbox preview Probe");
     }
 
@@ -316,7 +316,7 @@ mod tests {
             "S-1-5-21-1-2-3-99999".to_owned(), true,
             || {
                 assert!(super::super::xbox_probe_client_windows::
-                    probe_existing_xbox_preview(GetCurrentProcessId()).is_err());
+                    probe_existing_xbox_preview(unsafe { GetCurrentProcessId() }).is_err());
                 Ok(())
             },
         ).expect("reject unexpected SID");
@@ -326,7 +326,7 @@ mod tests {
     fn xbox_probe_rejects_wrong_server_pid_before_any_frame_is_sent() {
         let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
         let sid = current_user_sid().expect("runner token SID");
-        let actual = GetCurrentProcessId();
+        let actual = unsafe { GetCurrentProcessId() };
         let wrong = actual ^ 1;
         assert_ne!(actual, wrong);
         one_shot_xbox_preview(sid, true, || {

@@ -29,7 +29,7 @@ $inHyperVGuest = (
 if (-not $inHyperVGuest) {
     throw 'Refusing to run outside an identified Microsoft Hyper-V guest. No probe executed.'
 }
-if (-not [string]$os.Caption -match 'Windows 11') {
+if (-not ([string]$os.Caption -match 'Windows 11')) {
     throw 'Refusing to run on a guest that does not report Windows 11.'
 }
 

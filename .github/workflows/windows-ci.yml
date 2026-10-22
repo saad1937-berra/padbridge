@@ -28,6 +28,10 @@ jobs:
         run: python scripts/check_public_distribution.py --self-test
       - name: Reject unapproved XInput driver providers and trust-root changes
         run: python scripts/check_xinput_provider.py --self-test
+      - name: Audit XInput readiness as read-only static evidence
+        run: |
+          python scripts/report_xinput_readiness.py --self-test
+          python scripts/report_xinput_readiness.py
       - name: Validate isolated Windows diagnostic installer configuration
         run: python scripts/check_diagnostic_preview.py --self-test
       - name: Verify visible creator attribution and honest development status

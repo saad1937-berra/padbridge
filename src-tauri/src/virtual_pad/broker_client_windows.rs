@@ -13,7 +13,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, ReadFile, WriteFile, FILE_FLAG_OVERLAPPED, OPEN_EXISTING,
 };
 use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
-use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
+use windows_sys::Win32::System::Pipes::{GetNamedPipeServerProcessId, WaitNamedPipeW};
 use windows_sys::Win32::System::Threading::{CreateEventW, WaitForSingleObject};
 
 use super::broker_ipc::{self, Command, Status, RESPONSE_LEN};
@@ -94,8 +94,33 @@ fn exchange_io(handle: HANDLE, buf: &mut [u8], writing: bool) -> io::Result<usiz
 pub(crate) fn exchange_existing_endpoint(
     pipe_name: &str, request: &mut [u8], response: &mut [u8]
 ) -> io::Result<()> {
-    // This is an opt-in preview client only. Callers must supply their own
-    // constant pipe name and restrict which requests are sent.
+    exchange_existing_endpoint_with_owner(pipe_name, request, response, None)
+}
+
+/// Strictly check the pipe owner's PID BEFORE writing any PBXB request.
+/// The expected PID must be supplied by independently trusted provisioning;
+/// calling GetNamedPipeServerProcessId does not authenticate an installer or
+/// a signed Windows service by itself. Never derive the expected PID from
+/// the untrusted pipe endpoint or the PBXB reply.
+pub(crate) fn exchange_existing_endpoint_for_pid(
+    pipe_name: &str, request: &mut [u8], response: &mut [u8],
+    expected_server_pid: u32,
+) -> io::Result<()> {
+    if expected_server_pid == 0 {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput,
+            "a trusted, nonzero Xbox preview server PID is required"));
+    }
+    exchange_existing_endpoint_with_owner(
+        pipe_name, request, response, Some(expected_server_pid)
+    )
+}
+
+fn exchange_existing_endpoint_with_owner(
+    pipe_name: &str, request: &mut [u8], response: &mut [u8],
+    expected_server_pid: Option<u32>,
+) -> io::Result<()> {
+    // This opt-in preview client only. Callers must supply a hardcoded,
+    // local pipe and constrain the operation independently.
     let pipe = wide_z(pipe_name);
     if unsafe { WaitNamedPipeW(pipe.as_ptr(), PIPE_CONNECT_TIMEOUT_MS) } == 0 {
         return Err(io::Error::last_os_error());
@@ -110,6 +135,18 @@ pub(crate) fn exchange_existing_endpoint(
         return Err(io::Error::last_os_error());
     }
     let handle = OwnedHandle(raw);
+    if let Some(expected_pid) = expected_server_pid {
+        let mut actual_pid = 0u32;
+        // SAFETY: the handle is an open local named-pipe client handle and
+        // actual_pid is writable storage. No bytes are sent to the server.
+        if unsafe { GetNamedPipeServerProcessId(handle.0, &mut actual_pid) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if actual_pid == 0 || actual_pid != expected_pid {
+            return Err(io::Error::new(io::ErrorKind::PermissionDenied,
+                "the named pipe belongs to an unexpected Xbox preview process"));
+        }
+    }
     if exchange_io(handle.0, request, true)? != request.len() {
         return Err(io::Error::new(io::ErrorKind::WriteZero, "partial IPC request"));
     }

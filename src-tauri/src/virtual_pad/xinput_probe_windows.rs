@@ -8,8 +8,15 @@ use serde::Serialize;
 use std::io;
 use windows_sys::Win32::Foundation::HMODULE;
 use windows_sys::Win32::System::LibraryLoader::{
-    FreeLibrary, GetProcAddress, LoadLibraryExW, LOAD_LIBRARY_SEARCH_SYSTEM32,
+    GetProcAddress, LoadLibraryExW, LOAD_LIBRARY_SEARCH_SYSTEM32,
 };
+
+// FreeLibrary is a stable Kernel32 export; the pinned windows-sys 0.60
+// projection does not expose it via the LibraryLoader module.
+#[link(name = "kernel32")]
+extern "system" {
+    fn FreeLibrary(module: HMODULE) -> i32;
+}
 
 const ERROR_SUCCESS: u32 = 0;
 const ERROR_DEVICE_NOT_CONNECTED: u32 = 1167;

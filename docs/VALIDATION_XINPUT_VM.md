@@ -15,6 +15,30 @@ cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --features 
 
 Ces commandes **ne servent pas à installer un pilote**. Elles ne lisent que l'état XInput Windows. L'outil est isolé derrière `xinput-probe-poc`, n'est pas exposé dans les menus Tauri, ne lance aucun service et ne modifie pas les manettes.
 
+## Capture de référence XInput, sans pilote
+
+Dans la VM **Hyper-V Windows 11** avec un point de contrôle déjà créé depuis l'hôte, compiler une fois la commande de lecture XInput (aucune installation) :
+
+```powershell
+cargo build --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc --bin padbridge-xinput-probe
+.scriptscollect_vm_xinput_baseline.ps1 -Stage before
+```
+
+Le script refuse de fonctionner sur une machine qui n'est pas identifiée comme invitée Hyper-V Microsoft et enregistre uniquement `vm-evidence/before.json`. Il ne crée PAS de point de contrôle, ne charge PAS de pilote et ne modifie aucun service.
+
+Lors d'une phase ultérieure **autorisée et isolée** (après sélection d'un backend réellement XInput, installation/signature revue et contrôles de sécurité), capturer :
+
+```powershell
+.scriptscollect_vm_xinput_baseline.ps1 -Stage after-idle
+# Déclencher ensuite une action de test dans le backend validé de la VM.
+.scriptscollect_vm_xinput_baseline.ps1 -Stage after-activity
+python scripts/compare_xinput_snapshots.py --before vm-evidence/before.json --after-idle vm-evidence/after-idle.json --after-activity vm-evidence/after-activity.json
+```
+
+Le verdict `candidate_input_change_unattributed` n'est qu'un **candidat** : il faut une preuve PnP indépendante de l'identité du contrôleur. Les trois captures ne prouvent jamais, seules, la compatibilité PadBridge avec XInput.
+
+Document de décision et limites : [ARCHITECTURE_XINPUT_DECISION.md](ARCHITECTURE_XINPUT_DECISION.md).
+
 ## Plan de validation VM Hyper-V, avant toute mise en production
 
 **Prérequis obligatoires :** VM Windows 11 démarrée et isolée, point de contrôle récent, aucun périphérique réel en cours de test, processus de réinitialisation connu. Pas de désactivation durable de Secure Boot ou des protections noyau de la machine principale. Ne pas installer le pilote PadBridge non signé dans le système hôte.

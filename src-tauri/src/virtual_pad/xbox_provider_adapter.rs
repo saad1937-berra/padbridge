@@ -452,6 +452,60 @@ mod tests {
     }
 
     #[test]
+    fn disconnect_reconnect_never_resurrects_stale_controller_sessions() {
+        let (mut adapter, trace) = rig(true);
+        let first = adapter.create("first").unwrap();
+        let second = adapter.create("second").unwrap();
+        adapter.submit(&first, &pressed()).unwrap();
+        adapter.submit(&second, &pressed()).unwrap();
+        trace.lock().unwrap().ready = false;
+        assert_eq!(adapter.submit(&first, &pressed()).unwrap_err().code,
+                   codes::BACKEND_UNAVAILABLE);
+        assert!(trace.lock().unwrap().live.is_empty());
+        trace.lock().unwrap().ready = true;
+        let replacement = adapter.create("first").unwrap();
+        assert_ne!(first.0, replacement.0);
+        let previous = trace.lock().unwrap().messages.len();
+        assert_eq!(adapter.submit(&first, &pressed()).unwrap_err().code,
+                   codes::BACKEND_SESSION);
+        assert_eq!(adapter.submit(&second, &pressed()).unwrap_err().code,
+                   codes::BACKEND_SESSION);
+        assert_eq!(trace.lock().unwrap().messages.len(), previous,
+                   "stale session must not write to recovered provider");
+        adapter.submit(&replacement, &pressed()).unwrap();
+        adapter.destroy(&replacement).unwrap();
+        assert!(trace.lock().unwrap().live.is_empty());
+    }
+
+    #[test]
+    fn failed_submit_releases_other_controller_and_recovery_requires_new_ids() {
+        let (mut adapter, trace) = rig(true);
+        let first = adapter.create("first").unwrap();
+        let second = adapter.create("second").unwrap();
+        trace.lock().unwrap().fail_next_submit = true;
+        assert_eq!(adapter.submit(&second, &pressed()).unwrap_err().code,
+                   codes::BACKEND_SESSION);
+        assert!(trace.lock().unwrap().live.is_empty());
+        let count = trace.lock().unwrap().messages.len();
+        assert_eq!(adapter.submit(&first, &pressed()).unwrap_err().code,
+                   codes::BACKEND_SESSION);
+        assert_eq!(trace.lock().unwrap().messages.len(), count);
+        let new_first = adapter.create("first").unwrap();
+        let new_second = adapter.create("second").unwrap();
+        assert_ne!(first.0, new_first.0);
+        assert_ne!(second.0, new_second.0);
+        adapter.invalidate_all().unwrap();
+        assert!(trace.lock().unwrap().live.is_empty());
+    }
+
+    #[test]
+    fn invalid_device_identity_never_opens_a_provider_handle() {
+        let (mut adapter, trace) = rig(true);
+        assert_eq!(adapter.create("").unwrap_err().code, codes::INVALID_ARGUMENT);
+        assert!(trace.lock().unwrap().messages.is_empty());
+    }
+
+    #[test]
     fn provider_disconnected_before_invalid_input_also_revokes_handles() {
         let (mut adapter, trace) = rig(true);
         let id = adapter.create("one").unwrap();

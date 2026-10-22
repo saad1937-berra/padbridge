@@ -24,6 +24,10 @@ jobs:
         run: python scripts/verify_vhf_contract.py --self-test
       - name: Validate VM XInput evidence comparison without hardware
         run: python scripts/compare_xinput_snapshots.py --self-test
+      - name: Check XInput cleanup evidence using four synthetic snapshots (no driver)
+        run: python scripts/check_xinput_cleanup.py --self-test
+      - name: Exercise XInput cleanup CLI with offline JSON inputs (no driver)
+        run: python scripts/test_xinput_cleanup_cli.py
       - name: Enforce free-public distribution policy (no release)
         run: python scripts/check_public_distribution.py --self-test
       - name: Reject unapproved XInput driver providers and trust-root changes
@@ -94,6 +98,7 @@ jobs:
           Copy-Item src-tauri/target/debug/padbridge-xinput-probe.exe vm-xinput-kit/
           Copy-Item scripts/collect_vm_xinput_baseline.ps1 vm-xinput-kit/
           Copy-Item scripts/compare_xinput_snapshots.py vm-xinput-kit/
+          Copy-Item scripts/check_xinput_cleanup.py vm-xinput-kit/
           Copy-Item docs/VM_XINPUT_FIRST_RUN.md vm-xinput-kit/README.md
           Copy-Item docs/ARCHITECTURE_XINPUT_DECISION.md vm-xinput-kit/
           (Get-FileHash vm-xinput-kit/padbridge-xinput-probe.exe -Algorithm SHA256).Hash |

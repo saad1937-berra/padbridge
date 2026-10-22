@@ -61,6 +61,9 @@ if (($indices -join ',') -ne '0,1,2,3') {
 $destination = [System.IO.Path]::GetFullPath($OutputDirectory)
 [System.IO.Directory]::CreateDirectory($destination) | Out-Null
 $file = Join-Path $destination ($Stage + '.json')
+if (Test-Path -LiteralPath $file) {
+    throw "Refusing to overwrite existing evidence: $file"
+}
 $slots | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $file -Encoding utf8
 Write-Host "XInput $Stage snapshot written to $file"
 Write-Host 'WARNING: a connected XInput slot is NOT proof of PadBridge attribution.'

@@ -5,6 +5,9 @@
 pub mod backend;
 pub mod null_backend;
 pub mod selected_backend;
+// Opt-in Win32 XInput API reader for isolated tests, not a selectable backend.
+#[cfg(all(windows, feature = "xinput-probe-poc"))]
+pub mod xinput_probe_windows;
 // POC B : protocole HID virtuel pur, sans pilotes ni IOCTL actifs.
 pub mod vhf_protocol;
 // Coeur de broker testable, inactif tant qu'aucun service privilegie n'existe.

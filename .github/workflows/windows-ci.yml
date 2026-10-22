@@ -40,5 +40,11 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-scm-poc
       - name: Compile inert SCM preview (not run or installed)
         run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-scm-poc --bin padbridge-broker-scm
+      - name: Validate read-only XInput ABI and response classification
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc
+      - name: Compile standalone XInput diagnostic (no driver or service)
+        run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc --bin padbridge-xinput-probe
+      - name: Read XInput slots on disposable Windows CI (no hardware modifications)
+        run: cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc --bin padbridge-xinput-probe -- --snapshot
       - name: Compile native Windows/Tauri integration
         run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop

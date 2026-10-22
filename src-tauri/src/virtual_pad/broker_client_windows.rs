@@ -190,7 +190,8 @@ mod tests {
     // These tests run only on disposable GitHub Windows CI. They do not
     // install a driver or service and never emit an active controller state.
     fn one_shot_xbox_preview(
-        sid: String, action: impl FnOnce() -> io::Result<()>
+        sid: String, allow_no_connection: bool,
+        action: impl FnOnce() -> io::Result<()>
     ) -> io::Result<()> {
         let (ready, received) = mpsc::sync_channel(1);
         let worker = thread::spawn(move || -> io::Result<()> {
@@ -201,7 +202,13 @@ mod tests {
         received.recv_timeout(Duration::from_secs(4))
             .expect("Xbox preview endpoint ready");
         let result = action();
-        worker.join().expect("Xbox preview thread").expect("bounded server");
+        let server = worker.join().expect("Xbox preview thread");
+        match server {
+            Ok(()) => {}
+            Err(error) if allow_no_connection
+                && error.kind() == io::ErrorKind::TimedOut => {}
+            Err(error) => return Err(error),
+        }
         result
     }
 
@@ -209,7 +216,7 @@ mod tests {
     fn authenticated_real_windows_xbox_probe_never_creates_a_controller() {
         let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
         let sid = current_user_sid().expect("runner SID");
-        one_shot_xbox_preview(sid, || {
+        one_shot_xbox_preview(sid, false, || {
             super::super::xbox_probe_client_windows::probe_existing_xbox_preview()
         }).expect("read-only Xbox preview Probe");
     }
@@ -222,7 +229,7 @@ mod tests {
         use super::super::broker_pipe_windows::XBOX_PROBE_PIPE_NAME;
         let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
         let sid = current_user_sid().expect("runner SID");
-        one_shot_xbox_preview(sid, || {
+        one_shot_xbox_preview(sid, false, || {
             let mut request = xbox_wire::encode_request(Request {
                 operation: Operation::Open,
                 handle: 0, sequence: 7, state: [0; 12],
@@ -245,7 +252,7 @@ mod tests {
         use super::super::broker_pipe_windows::XBOX_PROBE_PIPE_NAME;
         let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
         let sid = current_user_sid().expect("runner SID");
-        one_shot_xbox_preview(sid, || {
+        one_shot_xbox_preview(sid, false, || {
             let mut request = xbox_wire::encode_request(Request {
                 operation: Operation::Probe,
                 handle: 0, sequence: 8, state: [0; 12],
@@ -267,7 +274,7 @@ mod tests {
         // This is not our current token SID. Depending on admin privileges,
         // either CreateFile is denied by DACL or token impersonation rejects.
         one_shot_xbox_preview(
-            "S-1-5-21-1-2-3-99999".to_owned(),
+            "S-1-5-21-1-2-3-99999".to_owned(), true,
             || {
                 assert!(super::super::xbox_probe_client_windows::
                     probe_existing_xbox_preview().is_err());

@@ -12,7 +12,13 @@ fn main() -> std::process::ExitCode {
         eprintln!("Not connected to the Tauri app, service or experimental driver.");
         return std::process::ExitCode::from(2);
     }
-    let slots = snapshot();
+    let slots = match snapshot() {
+        Ok(slots) => slots,
+        Err(error) => {
+            eprintln!("XInput 1.4 system DLL unavailable: {error}");
+            return std::process::ExitCode::from(1);
+        }
+    };
     let any_error = slots.iter().any(|slot|
         matches!(slot.state, SlotStatus::Error { .. })
     );

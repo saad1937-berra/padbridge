@@ -10,6 +10,10 @@ Application Windows (Tauri 2 + React/TypeScript + moteur Rust) pour détecter, t
 
 **Portée réelle du mode natif :** Windows réalise l'appairage Bluetooth et expose la manette aux jeux compatibles. PadBridge lit les rapports HID et affiche un aperçu des réglages, mais **ne modifie pas les entrées vues par les jeux en mode natif**. Les transformations de mapping et de zones mortes ne pourront affecter un jeu qu'après intégration et validation d'un backend virtuel adapté. Aucun pilote tiers ni pilote maison n'est installé par cette version.
 
+## Diagnostic Preview Windows (build CI, non public)
+
+Une version **diagnostic uniquement**, isolée sous l'identifiant `app.padbridge.diagnosticpreview`, peut être compilée en NSIS par [le workflow Windows dédié](.github/workflows/windows-diagnostic-preview.yml). Son installateur est **non signé**, distribué seulement comme artefact de courte durée d'une Pull Request, sans pilote Xbox, sans certificat ajouté et sans mode XInput réel. **Ce n'est pas une sortie grand public et rien ne doit être installé sur une machine principale uniquement pour ce test**. Détails et restrictions dans [le guide Diagnostic Preview](docs/DIAGNOSTIC_WINDOWS_PREVIEW.md).
+
 ## Démarrage sur Windows
 
 Prérequis : Node.js 20+, Rust (stable, MSVC), WebView2 (déjà présent sous Windows 11).

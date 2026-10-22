@@ -11,10 +11,15 @@ use std::io;
 use std::time::{Duration, Instant};
 
 use super::backend::OutputState;
-use super::vhf_protocol::{encode, validate_report, REPORT_LEN, WATCHDOG_INTERVAL_MS};
+use super::vhf_protocol::{
+    encode, validate_report, REPORT_LEN, WATCHDOG_INTERVAL_MS, WATCHDOG_TIMEOUT_MS,
+};
 
 pub type Report = [u8; REPORT_LEN];
 pub const HEARTBEAT_INTERVAL: Duration = Duration::from_millis(WATCHDOG_INTERVAL_MS as u64);
+/// Broker lease based only on FRESH input, never on keepalive traffic.
+/// Shorter than the kernel watchdog so a live broker releases stale buttons.
+pub const INPUT_LEASE: Duration = Duration::from_millis(600);
 
 /// A trusted transport (Windows DeviceIoControl, or a simulated unit-test sink).
 /// Sending a report must be synchronous. The kernel independently validates it.
@@ -28,6 +33,7 @@ pub struct BrokerSession<T: ReportTransport> {
     transport: T,
     last_report: Report,
     last_sent: Instant,
+    last_input: Instant,
     closed: bool,
 }
 
@@ -36,7 +42,8 @@ impl<T: ReportTransport> BrokerSession<T> {
     pub fn begin(mut transport: T) -> io::Result<Self> {
         let neutral = encode(&OutputState::neutral());
         transport.send(&neutral)?;
-        Ok(Self { transport, last_report: neutral, last_sent: Instant::now(), closed: false })
+        let now = Instant::now();
+        Ok(Self { transport, last_report: neutral, last_sent: now, last_input: now, closed: false })
     }
 
     pub fn submit(&mut self, state: &OutputState) -> io::Result<()> {
@@ -52,7 +59,9 @@ impl<T: ReportTransport> BrokerSession<T> {
         match self.transport.send(report) {
             Ok(()) => {
                 self.last_report = *report;
-                self.last_sent = Instant::now();
+                let now = Instant::now();
+                self.last_sent = now;
+                self.last_input = now; // This is a fresh producer report, NOT a heartbeat.
                 Ok(())
             }
             Err(err) => {
@@ -63,17 +72,35 @@ impl<T: ReportTransport> BrokerSession<T> {
         }
     }
 
-    /// Re-send the current *active* report periodically. The kernel watchdog
-    /// will neutralize controls on a broker crash or disconnected input source.
-    /// The caller must track input disconnection and call close() promptly.
+    /// Keep an active report alive only while the original input stream is fresh.
+    ///
+    /// Re-sending the cached report must NEVER extend the input lease: otherwise
+    /// a stalled input reader could hold a button forever despite the kernel
+    /// watchdog. The caller must still invoke heartbeat periodically.
     pub fn heartbeat(&mut self) -> io::Result<()> {
         if self.closed {
             return Err(io::Error::new(io::ErrorKind::BrokenPipe, "broker session closed"));
         }
         let neutral = encode(&OutputState::neutral());
-        if self.last_report != neutral && self.last_sent.elapsed() >= HEARTBEAT_INTERVAL {
+        if self.last_report == neutral {
+            return Ok(());
+        }
+        if self.last_input.elapsed() >= INPUT_LEASE {
+            // Best effort neutral: when transport is broken, the independent
+            // kernel watchdog is still the final fallback.
+            let _ = self.close();
+            return Err(io::Error::new(io::ErrorKind::TimedOut,
+                "physical input lease expired; virtual output closed"));
+        }
+        if self.last_sent.elapsed() >= HEARTBEAT_INTERVAL {
             let report = self.last_report;
-            self.send_validated(&report)?;
+            match self.transport.send(&report) {
+                Ok(()) => self.last_sent = Instant::now(),
+                Err(err) => {
+                    self.force_close();
+                    return Err(err);
+                }
+            }
         }
         Ok(())
     }
@@ -175,6 +202,59 @@ mod tests {
             io::ErrorKind::InvalidInput);
         assert_eq!(log.lock().unwrap().reports.len(), 1);
         assert!(!session.is_closed());
+    }
+
+    #[test]
+    fn keepalive_resends_active_state_but_never_extends_input_lease() {
+        let (mut session, log) = setup();
+        let mut held = OutputState::neutral();
+        held.buttons.set(XButton::A, true);
+        session.submit(&held).unwrap();
+        let original_input_time = session.last_input;
+        session.last_sent = Instant::now() - HEARTBEAT_INTERVAL - Duration::from_millis(10);
+        session.heartbeat().unwrap();
+        assert_eq!(session.last_input, original_input_time);
+        let reports = &log.lock().unwrap().reports;
+        assert_eq!(reports.len(), 3, "start neutral, fresh input, keepalive");
+        assert_eq!(reports[1], reports[2]);
+    }
+
+    #[test]
+    fn stale_input_closes_session_and_neutralizes_held_controls() {
+        let (mut session, log) = setup();
+        let mut held = OutputState::neutral();
+        held.buttons.set(XButton::A, true);
+        session.submit(&held).unwrap();
+        session.last_sent = Instant::now() - HEARTBEAT_INTERVAL - Duration::from_millis(10);
+        session.last_input = Instant::now() - INPUT_LEASE - Duration::from_millis(10);
+        assert_eq!(session.heartbeat().unwrap_err().kind(), io::ErrorKind::TimedOut);
+        assert!(session.is_closed());
+        assert_eq!(session.heartbeat().unwrap_err().kind(), io::ErrorKind::BrokenPipe);
+        let reports = &log.lock().unwrap().reports;
+        assert_eq!(reports.len(), 3, "no cached active input after expiry");
+        assert_eq!(reports[2], encode(&OutputState::neutral()));
+        drop(session);
+        assert_eq!(log.lock().unwrap().reports.len(), 3, "close remains idempotent");
+    }
+
+    #[test]
+    fn fresh_input_renews_lease_and_stale_heartbeat_does_not() {
+        let (mut session, log) = setup();
+        let mut held = OutputState::neutral();
+        held.buttons.set(XButton::A, true);
+        session.submit(&held).unwrap();
+        session.last_input = Instant::now() - INPUT_LEASE - Duration::from_millis(10);
+        session.submit(&held).unwrap();
+        assert!(session.last_input.elapsed() < INPUT_LEASE);
+        session.heartbeat().unwrap();
+        assert!(!session.is_closed());
+        assert_eq!(log.lock().unwrap().reports.len(), 3);
+    }
+
+    #[test]
+    fn lease_expires_before_kernel_watchdog() {
+        assert!(INPUT_LEASE < Duration::from_millis(WATCHDOG_TIMEOUT_MS as u64));
+        assert!(HEARTBEAT_INTERVAL < INPUT_LEASE);
     }
 
     #[test]

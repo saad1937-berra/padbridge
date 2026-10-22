@@ -34,6 +34,8 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc
       - name: Compile preview pipe host (no install or driver access)
         run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc --bin padbridge-broker-preview
+      - name: Compile PING-only local broker client (no service or driver)
+        run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc --bin padbridge-broker-probe
       - name: Test inert SCM lifecycle types and client token verification
         run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-scm-poc
       - name: Compile inert SCM preview (not run or installed)

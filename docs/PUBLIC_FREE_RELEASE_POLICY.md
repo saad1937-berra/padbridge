@@ -24,6 +24,8 @@ Pour accepter un backend, il faut simultanément :
 
 ViGEmBus demeure un projet historiquement connu, mais officiellement abandonné. Il ne faut pas réintroduire par défaut un pilote noyau archivé sans solution maintenue, documentation de licence et validation de sécurité. Le pilote actuel PadBridge VHF fournit une sortie HID générique ; il n'est pas déclaré XInput.
 
+**Nouveau garde-fou (octobre 2026) :** [audit HIDMaestro](HIDMAESTRO_XINPUT_EVALUATION.md) et fichier `policy/xinput-provider-review.json`. Le fait qu'un projet soit sous MIT ne dispense pas de vérifier sa procédure de signature Windows. PadBridge **n'ajoutera pas silencieusement une nouvelle autorité racine de confiance** à l'ordinateur de ses utilisateurs.
+
 ## Blocage de publication
 
 Le fichier `policy/public-release.json` fixe les conditions de ce projet. Le contrôle Python `scripts/check_public_distribution.py` vérifie qu'une PR ne transforme pas silencieusement l'application en produit payant, n'impose pas de clé ni compte, ne réactive pas le chargement ou l'installation automatique de pilotes, et n'approuve pas une publication avant audit.

@@ -49,4 +49,16 @@ python .\compare_xinput_snapshots.py --before .\vm-evidence\before.json --after-
 
 Un nouveau slot seul ne prouve pas qu'il appartient à PadBridge. Même avec des boutons changeants, l'attribution doit être confirmée séparément par les informations PnP. Ne pas installer le `.sys` expérimental dans l'hôte ni dans la VM avant le contrôle d'installation/signature et un audit noyau.
 
+## Quatrième capture : fermeture (plus tard, après validation d'un fournisseur)
+
+Une fois le contrôleur de test correctement fermé **dans la VM**, sans installer quoi que ce soit sur l'hôte :
+
+```powershell
+.\collect_vm_xinput_baseline.ps1 -Stage after-close
+python .\check_xinput_cleanup.py --self-test
+python .\check_xinput_cleanup.py --before .\vm-evidence\before.json --after-idle .\vm-evidence\after-idle.json --after-activity .\vm-evidence\after-activity.json --after-close .\vm-evidence\after-close.json
+```
+
+L'outil vérifie uniquement les quatre snapshots JSON et distingue un candidat disparu d'un candidat toujours connecté. **Il ne prouve ni l'identité PnP ni la désinstallation d'un pilote, et n'autorise jamais la publication.** Le kit CI devra inclure le nouveau script avant d'utiliser cette commande depuis un ZIP autonome.
+
 Documentation complémentaire : `VALIDATION_XINPUT_VM.md` et `ARCHITECTURE_XINPUT_DECISION.md`.

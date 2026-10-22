@@ -3,6 +3,8 @@
 //! L'application fonctionne entièrement sans backend (mode natif / diagnostic).
 
 pub mod backend;
+// Pure XINPUT_GAMEPAD state contract (NOT XUSB transport or HID driver).
+pub mod xinput_state_contract;
 pub mod null_backend;
 pub mod selected_backend;
 // Opt-in Win32 XInput API reader for isolated tests, not a selectable backend.
@@ -39,6 +41,9 @@ pub mod vhf_broker_windows;
 // Tests only, never linked into the Tauri app or selected backend.
 #[cfg(test)]
 mod loopback_poc;
+// A second test-only loopback records Xbox API-shaped output states.
+#[cfg(test)]
+mod xinput_state_loopback;
 
 // Backend de test en mémoire : permet de vérifier les invariants (PB-010, PB-018).
 #[cfg(test)]

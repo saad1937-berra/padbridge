@@ -136,8 +136,10 @@ fn usb_hid_to_virtual_wire_and_disconnect() {
     assert_eq!(sent[1][0], 1);
     assert_eq!(sent[1][1], 0x11, "Cross -> A and L1 -> LB");
     assert_eq!(sent[1][3], 8, "D-pad neutral");
-    assert_eq!(sent[1][4] as i8, 127);
-    assert_eq!(sent[1][5] as i8, 127);
+    // Radial deadzone preserves direction but normalizes diagonal magnitude:
+    // full upper-right diagonal has components ~127 / sqrt(2), not 127 each.
+    assert_eq!(sent[1][4] as i8, 90);
+    assert_eq!(sent[1][5] as i8, 90);
     assert_eq!(sent[1][8], 255);
 
     engine.device_lost("usb-one");

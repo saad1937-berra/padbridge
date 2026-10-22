@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "PadBridge Diagnostic Preview",
+  "identifier": "app.padbridge.diagnosticpreview",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "PadBridge — Diagnostic Preview (sans Xbox/XInput)",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 900,
+        "minHeight": 600
+      }
+    ]
+  }
+}

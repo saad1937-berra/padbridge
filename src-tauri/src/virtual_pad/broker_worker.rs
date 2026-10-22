@@ -1,7 +1,7 @@
 //! Opt-in prototype of an autonomous broker heartbeat executor.
 //!
-//! Pure Rust, memory-backed in CI. It is NOT a Windows service and does not
-//! open an HID device, start a driver, elevate, or expose an IPC endpoint.
+//! Pure Rust, memory-backed in CI and optionally owned by SCM dry-run preview.
+//! It does not open HID, start a driver, elevate, or expose an IPC endpoint.
 //! Nothing in Tauri/selected_backend.rs constructs this executor.
 //!
 //! Queue operations mean "accepted for processing", NOT "delivered to HID".

@@ -2,7 +2,7 @@
 
 ## Ce qui est livré
 
-Le module Rust `src-tauri/src/virtual_pad/broker_worker.rs` exécute une session `BrokerSession` sur un thread dédié. Il est compilé uniquement en tests ou sous la feature **explicitement optionnelle** `broker-service-poc` ; aucun chemin Tauri, aucun backend sélectionné, aucun service SCM et aucun pilote ne le lancent aujourd'hui.
+Le module Rust `src-tauri/src/virtual_pad/broker_worker.rs` exécute une session `BrokerSession` sur un thread dédié. Il est compilé uniquement en tests ou sous la feature **explicitement optionnelle** `broker-service-poc` ; aucun chemin Tauri ni backend sélectionné ne le lancent. Le service SCM **expérimental** peut désormais le posséder uniquement avec un transport de rapports neutres en mémoire (voir `docs/SCM_DRYRUN_WORKER_RUNTIME.md`) ; aucun pilote ne reçoit de rapport.
 
 Un canal borné (`sync_channel`, 8 rapports maximum) transporte des entrées de manette **déjà validées** vers ce worker. L'API `queue_fresh` confirme uniquement la mise en file, pas l'écriture effective sur un pilote. Si la file est saturée, un envoi échoue sans blocage en `WouldBlock` et la session existante n'est pas prolongée par cet événement rejeté.
 

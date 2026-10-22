@@ -1,6 +1,8 @@
 //! Windows SCM preview: STOP-cancellable, dry-run local IPC only.
 //!
 //! Opt-in compilation; no CreateService, no INF, no kernel IOCTL or auto-start.
+//! Starts a neutral-only in-memory worker; never forwards authenticated IPC input
+//! to it or to the experimental driver.
 //! Missing admin-provisioned SID in HKLM => fail closed before opening a pipe.
 //! The window/Tauri frontend always retains NullBackend.
 //! Despite SCM integration this is NOT a production-deployable service:
@@ -17,6 +19,7 @@ use windows_sys::Win32::System::Services::{
 
 use super::broker_config_windows::read_authorized_sid;
 use super::broker_pipe_windows::PreviewPipe;
+use super::broker_preview_runtime::PreviewRuntime;
 
 pub const SERVICE_NAME: &str = "PadBridgeBrokerPreview";
 static STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
@@ -80,21 +83,41 @@ extern "system" fn service_main(_argc: u32, _argv: *mut *mut u16) {
                 match PreviewPipe::bind_for_sid(&sid) {
                     Err(error) => error.raw_os_error().unwrap_or(5) as u32,
                     Ok(mut pipe) => {
-                        status(status_handle, SERVICE_RUNNING, 0);
-                        let mut failure = 0;
-                        while !STOP_REQUESTED.load(Ordering::Acquire) {
-                            match pipe.serve_one_message_until(&STOP_REQUESTED) {
-                                Ok(()) => {}
-                                Err(ref error) if error.kind() == io::ErrorKind::TimedOut => {}
-                                Err(ref error) if error.kind() == io::ErrorKind::Interrupted
-                                    && STOP_REQUESTED.load(Ordering::Acquire) => break,
-                                Err(error) => {
-                                    failure = error.raw_os_error().unwrap_or(1) as u32;
-                                    break;
+                        // Fail closed: if the autonomous preview worker cannot
+                        // start, SCM never reports RUNNING or accepts IPC.
+                        match PreviewRuntime::start() {
+                            Err(error) => error.raw_os_error().unwrap_or(1) as u32,
+                            Ok(runtime) => {
+                                // The runtime owns NO device handle and has NO
+                                // producer exposed: the pipe keeps rejecting
+                                // SUBMIT / NEUTRAL in its dry-run policy.
+                                if !STOP_REQUESTED.load(Ordering::Acquire) {
+                                    status(status_handle, SERVICE_RUNNING, 0);
                                 }
+                                let mut failure = 0;
+                                while !STOP_REQUESTED.load(Ordering::Acquire) {
+                                    match pipe.serve_one_message_until(&STOP_REQUESTED) {
+                                        Ok(()) => {}
+                                        Err(ref error) if error.kind() == io::ErrorKind::TimedOut => {}
+                                        Err(ref error) if error.kind() == io::ErrorKind::Interrupted
+                                            && STOP_REQUESTED.load(Ordering::Acquire) => break,
+                                        Err(error) => {
+                                            failure = error.raw_os_error().unwrap_or(1) as u32;
+                                            break;
+                                        }
+                                    }
+                                }
+                                // No driver write is possible here: two neutral
+                                // frames are counted in RAM (start and STOP).
+                                // Surface worker failure instead of hiding it.
+                                if let Err(error) = runtime.shutdown() {
+                                    if failure == 0 {
+                                        failure = error.raw_os_error().unwrap_or(1) as u32;
+                                    }
+                                }
+                                failure
                             }
                         }
-                        failure
                     }
                 }
             }

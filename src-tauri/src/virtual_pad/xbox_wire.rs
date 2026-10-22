@@ -397,6 +397,52 @@ mod tests {
     }
 
     #[test]
+    fn malformed_request_lengths_and_reserved_fields_fail_closed() {
+        let original = encode_request(Request {
+            operation: Operation::Probe, handle: 0, sequence: 1, state: NEUTRAL,
+        }).unwrap();
+        for length in 0..REQUEST_LEN {
+            assert!(decode_request(&original[..length]).is_err(),
+                "truncated request accepted at {length} bytes");
+        }
+        let mut oversized = original.to_vec();
+        oversized.push(0);
+        assert!(decode_request(&oversized).is_err());
+        for index in [6usize, 7] {
+            let mut modified = original;
+            modified[index] = 1;
+            assert!(decode_request(&modified).is_err(),
+                "nonzero reserved request byte {index} accepted");
+        }
+        let mut modified = original;
+        modified[16..24].fill(0);
+        assert!(decode_request(&modified).is_err(), "zero sequence accepted");
+        modified = original;
+        modified[24] = 1;
+        assert!(decode_request(&modified).is_err(), "non-neutral Probe accepted");
+    }
+
+    #[test]
+    fn malformed_response_lengths_status_and_reserved_fields_fail_closed() {
+        let original = encode_response(Response {
+            code: ReplyCode::Ok, handle: 0, sequence: 1,
+        });
+        for length in 0..RESPONSE_LEN {
+            assert!(decode_response(&original[..length]).is_err(),
+                "truncated response accepted at {length} bytes");
+        }
+        let mut oversized = original.to_vec();
+        oversized.push(0);
+        assert!(decode_response(&oversized).is_err());
+        for index in [0usize, 4, 5, 6, 7] {
+            let mut modified = original;
+            modified[index] = 255;
+            assert!(decode_response(&modified).is_err(),
+                "corrupted response header byte {index} accepted");
+        }
+    }
+
+    #[test]
     fn unavailable_channel_never_opens_a_session() {
         let srv = Arc::new(Mutex::new(Service::default()));
         let mut client = XboxWireClient::new(MemoryExchange(srv.clone()));

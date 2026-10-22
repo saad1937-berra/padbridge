@@ -4,13 +4,17 @@ Ce kit autonome ne contient que `padbridge-xinput-probe.exe`, un script de colle
 
 ## Télécharger le kit depuis GitHub
 
-1. Ouvrir le workflow `PadBridge Windows CI` de la PR #10 dans GitHub Actions.
-2. Sur la **dernière exécution réussie** de cette branche, section `Artifacts`, télécharger `PadBridge-XInput-ReadOnly-Windows-x64`.
-3. Dans la VM **Windows 11 Hyper-V déjà installée**, extraire les fichiers dans un dossier dédié. Ne pas exécuter le kit sur le Windows principal.
+1. Sur GitHub, ouvrir [Actions — PadBridge Windows CI](https://github.com/saad1937-berra/padbridge/actions/workflows/windows-ci.yml) et choisir une **exécution réussie sur `main`**, de préférence le commit fusionné le plus récent. Ne pas se limiter à une ancienne PR : les artefacts ont une durée de conservation limitée.
+2. Dans `Artifacts`, télécharger `PadBridge-XInput-ReadOnly-Windows-x64` (si disponible ; sinon attendre une nouvelle exécution de CI). Contrôler que le workflow et le dépôt sont bien ceux de PadBridge.
+3. Extraire le kit **dans la VM Windows 11 Hyper-V**, dans un dossier dédié. Ne pas exécuter le kit sur le Windows principal.
 
 Ne pas contourner aveuglément une alerte de sécurité Windows. Vérifier l'origine du workflow, l'extraction correcte du fichier et sa somme SHA-256 si nécessaire. Il s'agit d'un prototype diagnostic compilé en CI, **non signé**.
 
 ## Prérequis
+
+- Installer Windows 11 **dans une machine virtuelle de génération 2**, avec Secure Boot compatible Windows et ressources adaptées, en respectant les exigences d'installation de Windows 11. Créer un point de contrôle depuis le gestionnaire Hyper-V avant les tests de contrôleurs virtuels.
+- Garder les tests de pilotes et services expérimentaux en dehors du PC principal ; une VM Hyper-V ne garantit pas un passage direct du Bluetooth/USB hôte vers la VM.
+- Pour cette première phase, **aucun transfert de manette physique n'est nécessaire** : la capture de base XInput se fait sans contrôleur.
 
 - VM démarrée, un **point de contrôle créé dans Hyper-V depuis l'hôte** avant tout essai ultérieur.
 - Pas de manette virtuelle ni de périphérique Xbox de test encore installé dans la VM.

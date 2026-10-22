@@ -5,6 +5,11 @@
 //! This module is never linked into PadBridge's desktop backend.
 
 use serde::Serialize;
+use std::io;
+use windows_sys::Win32::Foundation::HMODULE;
+use windows_sys::Win32::System::LibraryLoader::{
+    FreeLibrary, GetProcAddress, LoadLibraryExW, LOAD_LIBRARY_SEARCH_SYSTEM32,
+};
 
 const ERROR_SUCCESS: u32 = 0;
 const ERROR_DEVICE_NOT_CONNECTED: u32 = 1167;
@@ -29,9 +34,45 @@ struct XInputState {
     gamepad: XInputGamepad,
 }
 
-#[link(name = "xinput1_4")]
-extern "system" {
-    fn XInputGetState(user_index: u32, state: *mut XInputState) -> u32;
+// Load only the known Windows system DLL. A direct import library link is
+// intentionally avoided so this probe compiles on runners without xinput1_4.lib.
+type XInputGetStateFn = unsafe extern "system" fn(u32, *mut XInputState) -> u32;
+
+struct XInputApi {
+    module: HMODULE,
+    get_state: XInputGetStateFn,
+}
+
+impl XInputApi {
+    fn load() -> io::Result<Self> {
+        let name: Vec<u16> = "xinput1_4.dll".encode_utf16()
+            .chain(std::iter::once(0)).collect();
+        // SAFETY: trusted constant DLL name and system32-only search policy.
+        let module = unsafe {
+            LoadLibraryExW(name.as_ptr(), std::ptr::null_mut(), LOAD_LIBRARY_SEARCH_SYSTEM32)
+        };
+        if module.is_null() {
+            return Err(io::Error::last_os_error());
+        }
+        // SAFETY: the module is valid and the export name is NUL terminated.
+        let procedure = unsafe { GetProcAddress(module, b"XInputGetState\0".as_ptr()) };
+        let Some(procedure) = procedure else {
+            let error = io::Error::last_os_error();
+            unsafe { FreeLibrary(module); }
+            return Err(error);
+        };
+        // SAFETY: Microsoft specifies this export as
+        // DWORD XInputGetState(DWORD, XINPUT_STATE*).
+        let get_state: XInputGetStateFn = unsafe { std::mem::transmute(procedure) };
+        Ok(Self { module, get_state })
+    }
+}
+
+impl Drop for XInputApi {
+    fn drop(&mut self) {
+        // SAFETY: our module reference was acquired by LoadLibraryExW.
+        unsafe { FreeLibrary(self.module); }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -85,14 +126,15 @@ fn classify(code: u32, state: XInputState) -> SlotStatus {
 }
 
 /// Snapshot of exactly four slots (indices 0..3), with no retry or polling.
-pub fn snapshot() -> [SlotSnapshot; MAX_SLOTS] {
-    std::array::from_fn(|i| {
+pub fn snapshot() -> io::Result<[SlotSnapshot; MAX_SLOTS]> {
+    let api = XInputApi::load()?;
+    Ok(std::array::from_fn(|i| {
         let mut state = XInputState::default();
         // SAFETY: XInput 1.4 writes to an initialized, correctly laid out
         // XINPUT_STATE buffer. User index is always within the documented 0..3.
-        let code = unsafe { XInputGetState(i as u32, &mut state) };
+        let code = unsafe { (api.get_state)(i as u32, &mut state) };
         SlotSnapshot { slot: i as u32, state: classify(code, state) }
-    })
+    }))
 }
 
 #[cfg(test)]

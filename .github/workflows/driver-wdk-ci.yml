@@ -7,6 +7,7 @@ on:
       - "driver/poc-vhf/**"
       - "src-tauri/src/virtual_pad/vhf_protocol.rs"
       - "src-tauri/src/virtual_pad.rs"
+      - "scripts/verify_vhf_contract.py"
   workflow_dispatch:
 
 permissions:
@@ -20,6 +21,9 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+
+      - name: Validate C/Rust HID wire contract (read-only static parsing)
+        run: python scripts/verify_vhf_contract.py --self-test
 
       # Runner windows-2022 ships VS 2022 + SDK/WDK 26100.
       # This workflow NEVER installs, loads, test-signs or starts any driver.

@@ -20,6 +20,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+      - name: Validate VHF HID descriptor and C/Rust wire contract (no driver)
+        run: python scripts/verify_vhf_contract.py --self-test
       - name: Install frontend dependencies
         run: npm ci
       - name: Check TypeScript and bundle frontend

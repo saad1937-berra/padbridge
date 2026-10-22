@@ -232,6 +232,17 @@ def validate_sources(kernel_c: str, kernel_h: str, rust: str) -> dict:
     require(tuple(c_comment.group(1).split(",")) == bit_order,
             "Rust/C button-bit order drift")
 
+    # Static regression guard only: actual KMDF retry behavior still needs VM tests.
+    cleanup = re.search(
+        r"(?ms)^VOID\s+PbEvtFileCleanup\s*\(\s*WDFFILEOBJECT\s+FileObject\s*\)\s*\{(.*?)^\}",
+        kernel_c,
+    )
+    require(cleanup is not None, "KMDF file-cleanup callback not found")
+    cleanup_body = remove_comments(cleanup.group(1))
+    require("PbSubmitNeutralLocked(context)" in cleanup_body,
+            "Kernel file cleanup no longer tries to release controls")
+    require(re.search(r"context->HasActiveInput\s*=\s*FALSE\b", cleanup_body) is None,
+            "FileCleanup clears watchdog retry state even if neutralization fails")
     return {
         "descriptor_bytes": len(descriptor),
         "report_bytes": report_size,
@@ -261,6 +272,12 @@ def run_negative_tests(c_source: str, h_source: str, rust_source: str) -> None:
     fails(c_source, h_source.replace(old, "#define PB_VHF_HAT_NEUTRAL 0x07", 1), rust_source,
           "neutral hat")
 
+    # Reintroduce the original unsafe reset in memory; the validator must refuse.
+    cleanup_old = "    (VOID)PbSubmitNeutralLocked(context);\n    WdfWaitLockRelease(context->ReportLock);\n}"
+    require(c_source.count(cleanup_old) == 1, "Mutation setup cannot find cleanup block")
+    cleanup_unsafe = "    (VOID)PbSubmitNeutralLocked(context);\n    context->HasActiveInput = FALSE;\n    WdfWaitLockRelease(context->ReportLock);\n}"
+    fails(c_source.replace(cleanup_old, cleanup_unsafe, 1), h_source, rust_source,
+          "unsafe FileCleanup watchdog reset")
     old = "pub const REPORT_LEN: usize = 10;"
     require(rust_source.count(old) == 1, "Mutation setup cannot find report size")
     fails(c_source, h_source, rust_source.replace(old, "pub const REPORT_LEN: usize = 11;", 1),
@@ -284,7 +301,7 @@ def main() -> int:
         parser.exit(1, "VHF ABI CONTRACT FAILURE: " + str(error) + "\n")
     print("VHF ABI contract: PASS " + str(result))
     if args.self_test:
-        print("VHF contract drift detection: PASS (3 independent mutations rejected)")
+        print("VHF contract drift detection: PASS (4 independent mutations rejected)")
     return 0
 
 

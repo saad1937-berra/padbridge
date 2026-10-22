@@ -3,7 +3,7 @@
 
 import type {
   ActivateResult, ApiError, AppSettings, ControllerView, DiagnosticsReport, InputSample,
-  OutputMode, Profile, SaveOutcome, ValidationReport,
+  OutputMode, Profile, SaveOutcome, ValidationReport, DriftReport, DriftSample, HidOutputInfo,
 } from "./types";
 import { mockApi, mockOnControllersChanged, mockOnInputSample, mockPickExportPath } from "./mock";
 
@@ -31,6 +31,10 @@ export interface Api {
   getControllerState(deviceId: string): Promise<ControllerView>;
   startInputTest(deviceId: string, profile?: Profile | null): Promise<void>;
   stopInputTest(): Promise<void>;
+  testDs4Rumble(deviceId: string, intensity: number, durationMs: number): Promise<void>;
+  stopDs4Rumble(deviceId: string): Promise<void>;
+  inspectDs4Hid(deviceId: string): Promise<HidOutputInfo>;
+  analyzeStickDrift(samples: DriftSample[]): Promise<DriftReport>;
   validateProfile(profile: Profile): Promise<ValidationReport>;
   saveProfile(profile: Profile): Promise<SaveOutcome>;
   listProfiles(): Promise<Profile[]>;
@@ -52,6 +56,10 @@ const tauriApi: Api = {
   getControllerState: (deviceId) => call("get_controller_state", { deviceId }),
   startInputTest: (deviceId, profile) => call("start_input_test", { deviceId, profile: profile ?? null }),
   stopInputTest: () => call("stop_input_test"),
+  testDs4Rumble: (deviceId, intensity, durationMs) => call("test_ds4_rumble", { deviceId, intensity, durationMs }),
+  stopDs4Rumble: (deviceId) => call("stop_ds4_rumble", { deviceId }),
+  inspectDs4Hid: (deviceId) => call("inspect_ds4_hid", { deviceId }),
+  analyzeStickDrift: (samples) => call("analyze_stick_drift", { samples }),
   validateProfile: (profile) => call("validate_profile", { profile }),
   saveProfile: (profile) => call("save_profile", { profile }),
   listProfiles: () => call("list_profiles"),

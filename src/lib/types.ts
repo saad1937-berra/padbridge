@@ -52,6 +52,15 @@ export interface ControllerDevice {
   lastSeenMs: number;
 }
 
+export interface HidOutputInfo {
+  model: string;
+  transport: string;
+  requestedReportId: string;
+  requestedLength: number;
+  windowsOutputReportByteLength: number | null;
+  windowsCapsError: string | null;
+}
+
 export interface Battery {
   percent: number | null;
   charging: boolean;
@@ -90,6 +99,24 @@ export interface InputSample {
   l2Raw: number;
   r2Raw: number;
   output: OutputState;
+}
+
+export interface DriftSample {
+  left: Stick;
+  right: Stick;
+}
+
+export type DriftStatus = "normal" | "possible_drift" | "movement_detected" | "inconclusive";
+export interface StickDriftResult {
+  status: DriftStatus;
+  meanMagnitude: number;
+  peakMagnitude: number;
+  suspectRatio: number;
+}
+export interface DriftReport {
+  sampleCount: number;
+  left: StickDriftResult;
+  right: StickDriftResult;
 }
 
 export interface Deadzones {

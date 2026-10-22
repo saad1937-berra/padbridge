@@ -122,6 +122,10 @@ export const mockApi: Api = {
   },
   startInputTest: async (id, p) => { testDevice = id; preview = p ?? null; },
   stopInputTest: async () => { testDevice = null; preview = null; },
+  testDs4Rumble: async () => { throw { code: "PB-E101", detail: "Vibration HID indisponible dans le navigateur simulé." }; },
+  stopDs4Rumble: async () => {},
+  inspectDs4Hid: async () => { throw { code: "PB-E101", detail: "Inspection HID uniquement disponible dans PadBridge Tauri sous Windows." }; },
+  analyzeStickDrift: async () => { throw { code: "PB-E002", detail: "Le diagnostic de drift réel nécessite PadBridge Tauri et une manette physique." }; },
   validateProfile: async (p) => validate(p),
   saveProfile: async (p) => {
     const report = validate(p);

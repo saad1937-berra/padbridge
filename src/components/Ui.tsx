@@ -8,7 +8,7 @@ export function Page({ title, subtitle, children }: { title: string; subtitle?: 
   return (
     <section className="flex flex-col gap-4">
       <header>
-        <h1 className="m-0 text-xl font-semibold">{title}</h1>
+        <h1 id="page-title" tabIndex={-1} className="m-0 text-xl font-semibold">{title}</h1>
         {subtitle && <p className="muted m-0 mt-1">{subtitle}</p>}
       </header>
       {children}
@@ -43,7 +43,7 @@ export function ModeBadge({ mode, virtualActive }: { mode: OutputMode; virtualAc
 /** Batterie : « Inconnue » quand la donnée manque, jamais 0 % par défaut (PB-009). */
 export function batteryText(battery: Battery | null): string {
   if (!battery || battery.percent === null) return "Inconnue";
-  return `${battery.percent} %${battery.charging ? " (en charge)" : ""}`;
+  return `≈ ${battery.percent} %${battery.charging ? " (en charge)" : ""}`;
 }
 
 export function ErrorNotice({ error, onClose }: { error: ApiError; onClose?: () => void }) {

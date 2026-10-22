@@ -4,8 +4,10 @@
 
 use super::permissions;
 use super::ui_events::{SharedTestSub, TestSub};
-use crate::diagnostics::{export_text, health, DiagnosticsReport};
+use crate::diagnostics::{drift::{self, DriftReport, DriftSample}, export_text, health, DiagnosticsReport};
 use crate::engine::{ActivateResult, ControllerView, Engine, SaveOutcome};
+use crate::devices::model::{ConnectionState, ControllerModel, Transport};
+use crate::devices::rumble::RumbleRegistry;
 use crate::error::{codes, AppError, AppResult};
 use crate::profiles::schema::{AppSettings, OutputMode, Profile, ValidationReport};
 use std::sync::Arc;
@@ -14,6 +16,7 @@ use tauri::State;
 pub struct AppState {
     pub engine: Arc<Engine>,
     pub test_sub: SharedTestSub,
+    pub rumble: Arc<RumbleRegistry>,
 }
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> AppResult<T> {
@@ -140,6 +143,107 @@ pub async fn export_diagnostics(state: State<'_, AppState>, path: String) -> App
     let engine = state.engine.clone();
     let system = blocking(health::collect).await?;
     engine.export_diagnostics(&path, system)
+}
+
+/// Analyse uniquement des positions brutes saisies durant un test volontaire.
+/// Taille et valeurs vérifiées dans le moteur, sans effets de bord.
+#[tauri::command]
+pub fn analyze_stick_drift(samples: Vec<DriftSample>) -> AppResult<DriftReport> {
+    drift::analyze(&samples)
+}
+
+/// Impulsion manuelle DualShock 4 : 10–60 %, 500–2000 ms, et arrêt HID vérifié.
+#[tauri::command]
+pub async fn test_ds4_rumble(
+    state: State<'_, AppState>,
+    device_id: String,
+    intensity: u8,
+    duration_ms: u16,
+) -> AppResult<()> {
+    let id = permissions::device_id(&device_id)?.to_string();
+    let controller = state.engine.get_controller(&id)?;
+    if controller.device.model != ControllerModel::DualShock4
+        || !matches!(controller.device.transport, Transport::Bluetooth | Transport::Usb)
+        || !matches!(controller.state.connection_state, ConnectionState::Connected | ConnectionState::Unstable)
+    {
+        return Err(AppError::new(codes::DEVICE_UNREADABLE, "une DualShock 4 lisible doit être connectée"));
+    }
+    if !(10..=60).contains(&intensity) || !(500..=2000).contains(&duration_ms) {
+        return Err(AppError::new(codes::INVALID_ARGUMENT, "intensité 10–60 %, durée 500–2000 ms"));
+    }
+    let rumble = state.rumble.clone();
+    blocking(move || rumble.pulse(&id, intensity * 2, intensity * 3, duration_ms)).await?
+}
+
+#[tauri::command]
+pub async fn stop_ds4_rumble(state: State<'_, AppState>, device_id: String) -> AppResult<()> {
+    let id = permissions::device_id(&device_id)?.to_string();
+    let rumble = state.rumble.clone();
+    blocking(move || rumble.stop(&id)).await?
+}
+
+/// Mesure en lecture seule des capacités de sortie HID de la collection choisie.
+/// L'identifiant local est vérifié ; aucun chemin ou numéro de série n'est retourné.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HidOutputInfo {
+    pub model: String,
+    pub transport: String,
+    pub requested_report_id: String,
+    pub requested_length: usize,
+    pub windows_output_report_byte_length: Option<u16>,
+    pub windows_caps_error: Option<String>,
+}
+
+#[tauri::command]
+pub async fn inspect_ds4_hid(
+    state: State<'_, AppState>,
+    device_id: String,
+) -> AppResult<HidOutputInfo> {
+    let id = permissions::device_id(&device_id)?.to_string();
+    let controller = state.engine.get_controller(&id)?;
+    if controller.device.model != ControllerModel::DualShock4 {
+        return Err(AppError::new(codes::INVALID_ARGUMENT, "diagnostic réservé aux DualShock 4"));
+    }
+    let transport = controller.device.transport;
+    let (requested_report_id, requested_length) = match transport {
+        Transport::Bluetooth => ("0x11", 78),
+        Transport::Usb => ("0x05", 32),
+        Transport::Unknown => return Err(AppError::new(codes::INVALID_ARGUMENT, "transport inconnu")),
+    };
+
+    #[cfg(windows)]
+    {
+        let (len, error) = blocking(move || {
+            let api = hidapi::HidApi::new().map_err(|e| {
+                AppError::new(codes::DEVICE_UNREADABLE, format!("énumération HID : {e}"))
+            })?;
+            let info = api.device_list()
+                .find(|dev| crate::devices::model::device_id_from_path(dev.path().to_bytes()) == id)
+                .ok_or_else(|| AppError::new(codes::DEVICE_NOT_FOUND, "collection HID introuvable"))?;
+            let result = crate::devices::hid_caps::output_report_byte_length(
+                &info.path().to_string_lossy()
+            );
+            Ok::<_, AppError>(match result {
+                Ok(length) => (Some(length), None),
+                Err(error) => (None, Some(error)),
+            })
+        }).await??;
+        Ok(HidOutputInfo {
+            model: "DualShock 4".into(),
+            transport: format!("{transport:?}"),
+            requested_report_id: requested_report_id.into(),
+            requested_length,
+            windows_output_report_byte_length: len,
+            windows_caps_error: error,
+        })
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = id;
+        Err(AppError::new(codes::DEVICE_UNREADABLE, "diagnostic réservé à Windows"))
+    }
 }
 
 #[tauri::command]

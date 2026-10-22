@@ -1,6 +1,6 @@
 // src/App.tsx — navigation principale et état partagé.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useControllers, useProfiles, useSettings } from "./lib/useEngine";
 import { Home, type Screen } from "./screens/Home";
 import { Devices } from "./screens/Devices";
@@ -9,6 +9,7 @@ import { Profiles } from "./screens/Profiles";
 import { Compatibility } from "./screens/Compatibility";
 import { Diagnostics } from "./screens/Diagnostics";
 import { Settings } from "./screens/Settings";
+import { PADBRIDGE_BRAND } from "./lib/branding";
 
 const NAV: { id: Screen; label: string; icon: string }[] = [
   { id: "home", label: "Accueil", icon: "⌂" },
@@ -22,6 +23,8 @@ const NAV: { id: Screen; label: string; icon: string }[] = [
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
+  const initialScreen = useRef(true);
+  const mainRef = useRef<HTMLElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { controllers, loading, refresh } = useControllers();
   const { profiles, refresh: refreshProfiles } = useProfiles();
@@ -33,15 +36,32 @@ export default function App() {
     else delete root.dataset.theme;
   }, [settings?.theme]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Une navigation interne ne recharge pas la page : restituer le titre et le focus.
+  useEffect(() => {
+    document.title = `${NAV.find((item) => item.id === screen)?.label ?? "PadBridge"} — PadBridge`;
+    if (initialScreen.current) {
+      initialScreen.current = false;
+      return;
+    }
+    mainRef.current?.scrollTo({ top: 0 });
+    document.getElementById("page-title")?.focus({ preventScroll: true });
+  }, [screen]);
+
   return (
-    <div className="flex h-full">
-      <nav className="flex w-56 shrink-0 flex-col gap-1 border-r p-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }} aria-label="Navigation principale">
-        <div className="px-3 pb-3 pt-1 text-lg font-bold">PadBridge</div>
+    <>
+      <a className="skip-link" href="#main-content">Aller au contenu principal</a>
+      <div className="app-shell flex h-full">
+      <nav className="app-nav flex w-56 shrink-0 flex-col gap-1 border-r p-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }} aria-label="Navigation principale">
+        <div className="px-3 pb-3 pt-1">
+          <div className="text-lg font-bold">{PADBRIDGE_BRAND.name}</div>
+          <div className="muted text-xs">by {PADBRIDGE_BRAND.creator}</div>
+        </div>
         {NAV.map((item) => (
           <button
             key={item.id}
             className="nav-item"
             aria-current={screen === item.id ? "page" : undefined}
+            aria-controls="main-content"
             onClick={() => setScreen(item.id)}
           >
             <span aria-hidden="true" className="w-5 text-center">{item.icon}</span>
@@ -49,11 +69,11 @@ export default function App() {
           </button>
         ))}
         <p className="muted mt-auto px-3 text-xs">
-          Projet indépendant, non affilié à Sony ni à Microsoft.
+          {PADBRIDGE_BRAND.independence}
         </p>
       </nav>
 
-      <main className="min-w-0 flex-1 overflow-y-auto p-6">
+      <main id="main-content" ref={mainRef} tabIndex={-1} aria-labelledby="page-title" className="app-main min-w-0 flex-1 overflow-y-auto p-6">
         <div className="mx-auto max-w-5xl">
           {screen === "home" && (
             <Home
@@ -78,6 +98,7 @@ export default function App() {
           {screen === "settings" && <Settings settings={settings} update={update} />}
         </div>
       </main>
-    </div>
+      </div>
+    </>
   );
 }

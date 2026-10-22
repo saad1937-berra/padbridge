@@ -62,13 +62,52 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 :focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* Premier arrêt clavier : passer la navigation sans devoir traverser sept boutons. */
+.skip-link {
+  position: fixed;
+  z-index: 1000;
+  top: 8px;
+  left: 8px;
+  padding: 10px 14px;
+  color: var(--accent-text);
+  background: var(--accent);
+  border-radius: 8px;
+  transform: translateY(-160%);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Le document peut se rétrécir à fort zoom sans imposer un panneau latéral. */
+@media (max-width: 760px) {
+  .app-shell { flex-direction: column; }
+  .app-nav {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+  .app-nav .nav-item { width: auto; flex-shrink: 0; white-space: nowrap; }
+  .app-nav > p { display: none; }
+  .app-main { min-height: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 @layer components {
@@ -226,4 +265,14 @@ body {
   .nav-item[aria-current="page"] .badge {
     color: inherit;
   }
+}
+
+
+/* Contraste élevé Windows : les états ne doivent pas dépendre des couleurs de thème. */
+@media (forced-colors: active) {
+  :focus-visible { outline-color: Highlight; }
+  .nav-item[aria-current="page"],
+  .btn-primary { border: 2px solid Highlight; }
+  .pad-part[data-on="true"] { stroke: Highlight; stroke-width: 5; }
+  .badge { border-color: CanvasText; }
 }

@@ -1,12 +1,14 @@
 // src/components/Gamepad.tsx — schéma générique d'une manette (formes neutres, sans logo).
 // Une pièce active est remplie ET plus épaisse : l'état ne repose pas sur la couleur seule.
 
+import { useState } from "react";
 import type { InputSample, PsButton } from "../lib/types";
 import { psButtonLabel } from "../lib/i18n";
 
 const on = (s: InputSample | null, b: PsButton) => !!s?.pressed.includes(b);
 
 export function Gamepad({ sample }: { sample: InputSample | null }) {
+  const [announcement, setAnnouncement] = useState("");
   const lx = sample?.leftRaw.x ?? 0;
   const ly = sample?.leftRaw.y ?? 0;
   const rx = sample?.rightRaw.x ?? 0;
@@ -83,10 +85,12 @@ export function Gamepad({ sample }: { sample: InputSample | null }) {
         <circle className="pad-part" data-on={on(sample, "r3")} cx={335} cy={210} r={36} />
         <circle cx={335 + rx * 24} cy={210 - ry * 24} r={11} fill="var(--text)" />
       </svg>
-      <p className="m-0 mt-2" aria-live="polite">
+      <p className="m-0 mt-2">
         <strong>Boutons actifs :</strong>{" "}
         {pressed.length ? pressed.map((b) => psButtonLabel[b]).join(", ") : <span className="muted">aucun</span>}
       </p>
+      <button className="btn mt-2" type="button" onClick={() => setAnnouncement(pressed.length ? `Boutons actifs : ${pressed.map((b) => psButtonLabel[b]).join(", ")}` : "Aucun bouton actif")}>Annoncer les boutons actifs</button>
+      <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
     </div>
   );
 }

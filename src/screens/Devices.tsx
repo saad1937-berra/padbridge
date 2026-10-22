@@ -1,7 +1,7 @@
 // src/screens/Devices.tsx — liste des appareils et détails techniques.
 
 import { useState } from "react";
-import { modelLabel, formatDate } from "../lib/i18n";
+import { modelLabel, formatDate, transportLabel } from "../lib/i18n";
 import type { ControllerView } from "../lib/types";
 import { Page, StatusBadge, TransportBadge, batteryText } from "../components/Ui";
 
@@ -32,18 +32,19 @@ export function Devices({
       ) : (
         <div className="card p-0">
           <table className="data">
+            <caption className="sr-only">Manettes détectées par PadBridge</caption>
             <thead>
-              <tr><th>Modèle</th><th>Transport</th><th>État</th><th>Batterie</th><th></th></tr>
+              <tr><th scope="col">Modèle</th><th scope="col">Transport</th><th scope="col">État</th><th scope="col">Batterie</th><th scope="col">Actions</th></tr>
             </thead>
             <tbody>
-              {controllers.map((c) => (
-                <tr key={c.device.deviceId} aria-selected={selected?.device.deviceId === c.device.deviceId}>
-                  <td>{modelLabel[c.device.model]}</td>
+              {controllers.map((c, index) => (
+                <tr key={c.device.deviceId}>
+                  <th scope="row">{modelLabel[c.device.model]}</th>
                   <td><TransportBadge transport={c.device.transport} /></td>
                   <td><StatusBadge state={c.state.connectionState} /></td>
                   <td>{batteryText(c.state.battery)}</td>
                   <td>
-                    <button className="btn" onClick={() => selectDevice(c.device.deviceId)}>Détails</button>
+                    <button className="btn" aria-controls="device-details" aria-current={selected?.device.deviceId === c.device.deviceId ? "true" : undefined} aria-label={`Détails de ${modelLabel[c.device.model]}, ${transportLabel[c.device.transport]}, appareil ${index + 1}`} onClick={() => selectDevice(c.device.deviceId)}>Détails</button>
                   </td>
                 </tr>
               ))}
@@ -53,7 +54,7 @@ export function Devices({
       )}
 
       {selected && (
-        <section className="card" aria-label="Détails de l'appareil">
+        <section id="device-details" className="card" aria-label="Détails de l'appareil">
           <h2>Détails — {modelLabel[selected.device.model]}</h2>
           <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
             <dt className="muted">Identifiants matériels (VID:PID)</dt>

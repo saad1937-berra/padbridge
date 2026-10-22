@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toApiError } from "../lib/api";
 import type { ApiError, AppSettings } from "../lib/types";
 import { ErrorNotice, Page } from "../components/Ui";
+import { PADBRIDGE_BRAND } from "../lib/branding";
 
 export function Settings({
   settings, update,
@@ -51,6 +52,19 @@ export function Settings({
         </label>
       </section>
 
+      <section className="card flex flex-col gap-3" aria-label="Zone de notification Windows">
+        <h2>Zone de notification Windows</h2>
+        <p className="m-0">
+          Sur Windows, faites un clic droit sur l'icône PadBridge près de l'horloge pour afficher
+          « Masquer », « Afficher » ou « Quitter ». Un clic gauche sur l'icône rouvre la fenêtre.
+        </p>
+        <p className="muted m-0 text-xs">
+          Fermer la fenêtre avec × quitte réellement l'application. Si vous la masquez volontairement,
+          PadBridge reste actif et continue de lire les entrées HID. Choisissez « Quitter PadBridge »
+          dans la zone de notification pour libérer la manette avant de lancer un jeu.
+        </p>
+      </section>
+
       <section className="card flex flex-col gap-3" aria-label="Données locales">
         <h2>Données locales</h2>
         <p className="m-0">
@@ -60,6 +74,14 @@ export function Settings({
         <div>
           <button className="btn" onClick={() => void apply({ ...settings, onboardingDone: false })}>Réafficher l'écran de bienvenue</button>
         </div>
+      </section>
+
+      <section className="card flex flex-col gap-2" aria-label="À propos de PadBridge">
+        <h2>À propos de PadBridge</h2>
+        <p className="m-0 font-semibold">{PADBRIDGE_BRAND.byline}</p>
+        <p className="muted m-0 text-sm">{PADBRIDGE_BRAND.projectStatus}</p>
+        <p className="muted m-0 text-xs">{PADBRIDGE_BRAND.independence}</p>
+        <p className="muted m-0 text-xs">Auteur sur GitHub : @{PADBRIDGE_BRAND.creatorGitHub}</p>
       </section>
     </Page>
   );

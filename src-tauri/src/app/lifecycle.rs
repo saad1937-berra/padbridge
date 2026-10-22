@@ -5,6 +5,7 @@
 use super::commands::{self, AppState};
 use super::ui_events;
 use crate::engine::Engine;
+use crate::devices::rumble::RumbleRegistry;
 use crate::profiles::store::SettingsStore;
 use crate::virtual_pad::selected_backend;
 use std::path::Path;
@@ -46,16 +47,22 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let retention = SettingsStore::new(data_dir.join("settings.json")).load().log_retention_days;
     let log_guard = init_logging(&data_dir.join("logs"), retention);
 
+    // Faire échouer proprement l'initialisation si la zone de notification ne peut
+    // pas être créée, avant de démarrer les lecteurs et threads HID.
+    #[cfg(windows)]
+    super::tray::install(app)?;
+
     let engine = Arc::new(Engine::new(&data_dir, selected_backend::select())?);
     let stop = Arc::new(AtomicBool::new(false));
     let test_sub: ui_events::SharedTestSub = Arc::new(Mutex::new(None));
+    let rumble = Arc::new(RumbleRegistry::default());
 
     #[cfg(windows)]
-    let monitor = Mutex::new(Some(crate::devices::enumeration::spawn(engine.clone(), stop.clone())));
+    let monitor = Mutex::new(Some(crate::devices::enumeration::spawn(engine.clone(), stop.clone(), rumble.clone())));
 
     ui_events::spawn(app.handle().clone(), engine.clone(), test_sub.clone(), stop.clone());
 
-    app.manage(AppState { engine, test_sub });
+    app.manage(AppState { engine, test_sub, rumble });
     app.manage(Runtime {
         stop,
         #[cfg(windows)]
@@ -89,6 +96,9 @@ pub fn run() {
             commands::get_controller_state,
             commands::start_input_test,
             commands::stop_input_test,
+            commands::inspect_ds4_hid,
+            commands::test_ds4_rumble,
+            commands::stop_ds4_rumble,
             commands::validate_profile,
             commands::save_profile,
             commands::list_profiles,
@@ -99,6 +109,7 @@ pub fn run() {
             commands::activate_mode,
             commands::stop_virtual_session,
             commands::run_diagnostics,
+            commands::analyze_stick_drift,
             commands::preview_diagnostics_export,
             commands::export_diagnostics,
             commands::get_settings,

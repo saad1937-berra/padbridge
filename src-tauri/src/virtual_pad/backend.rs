@@ -145,6 +145,8 @@ fn trigger_byte(v: f32) -> u8 {
 }
 
 /// Disposition identique à XINPUT_GAMEPAD (pratique pour écrire un backend).
+/// NOTE: ABI de l'etat XInput, et NON trame de transport XUSB.
+#[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct XInputReport {
     pub buttons: u16,

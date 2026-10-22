@@ -268,7 +268,7 @@ pub struct ControllerState {
 // ---------------------------------------------------------------------------
 
 /// Axe analogique normalisé : x vers la droite (+), y vers le haut (+), plage [-1, 1].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct Stick {
     pub x: f32,
     pub y: f32,

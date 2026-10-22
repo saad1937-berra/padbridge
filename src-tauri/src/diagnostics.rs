@@ -1,5 +1,6 @@
 // src-tauri/src/diagnostics.rs
 pub mod double_input;
+pub mod drift;
 pub mod events;
 pub mod health;
 

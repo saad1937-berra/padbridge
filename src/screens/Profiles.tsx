@@ -106,7 +106,8 @@ export function Profiles({ profiles, refreshProfiles, controllers, settings, upd
               <li key={p.id}>
                 <button
                   className="nav-item"
-                  aria-current={p.id === stored?.id ? "page" : undefined}
+                  aria-current={p.id === stored?.id ? "true" : undefined}
+                  aria-controls="profile-editor"
                   onClick={() => setEditingId(p.id)}
                 >
                   <span>{p.name}</span>
@@ -118,7 +119,7 @@ export function Profiles({ profiles, refreshProfiles, controllers, settings, upd
         </nav>
 
         {draft && stored && (
-          <div className="flex flex-col gap-4">
+          <div id="profile-editor" className="flex flex-col gap-4">
             <section className="card flex flex-col gap-3" aria-label="Profil sélectionné">
               <label className="flex flex-col gap-1">
                 Nom du profil

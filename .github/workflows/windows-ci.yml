@@ -1,0 +1,104 @@
+name: PadBridge Windows CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - name: Validate VHF HID descriptor and C/Rust wire contract (no driver)
+        run: python scripts/verify_vhf_contract.py --self-test
+      - name: Validate VM XInput evidence comparison without hardware
+        run: python scripts/compare_xinput_snapshots.py --self-test
+      - name: Enforce free-public distribution policy (no release)
+        run: python scripts/check_public_distribution.py --self-test
+      - name: Reject unapproved XInput driver providers and trust-root changes
+        run: python scripts/check_xinput_provider.py --self-test
+      - name: Validate isolated Windows diagnostic installer configuration
+        run: python scripts/check_diagnostic_preview.py --self-test
+      - name: Verify visible creator attribution and honest development status
+        run: python scripts/check_creator_attribution.py
+      - name: Parse Hyper-V evidence collector (never execute it on CI)
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "scripts/collect_vm_xinput_baseline.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count -ne 0) { throw ($errors | Out-String) }
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Check TypeScript and bundle frontend
+        run: npm run build
+      - name: Test Rust engine without desktop dependencies
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features
+      - name: Verify XINPUT_GAMEPAD state contract (no device or driver)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features xinput_state_contract
+      - name: Test DS4 to Xbox state on in-memory backend only
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features xinput_state_loopback
+      - name: Verify vendor-neutral Xbox provider lifecycle (no installed driver)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features xbox_provider_adapter
+      - name: Verify private Xbox wire protocol and memory-only provider bridge
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features xbox_wire
+      - name: Test dormant broker protocol and simulated sessions
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-poc
+      - name: Compile Windows Tauri with opt-in broker transport
+        run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop,broker-poc
+      - name: Test local broker IPC protocol and Windows ACL-only preview
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc
+      - name: Probe Xbox IPC over authenticated live Windows named pipe (no driver)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc xbox_probe
+      - name: Compile preview pipe host (no install or driver access)
+        run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc --bin padbridge-broker-preview
+      - name: Compile PING-only local broker client (no service or driver)
+        run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-service-poc --bin padbridge-broker-probe
+      - name: Test inert SCM lifecycle types and client token verification
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-scm-poc
+      - name: Compile inert SCM preview (not run or installed)
+        run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features --features broker-scm-poc --bin padbridge-broker-scm
+      - name: Validate read-only XInput ABI and response classification
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc
+      - name: Compile standalone XInput diagnostic (no driver or service)
+        run: cargo check --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc --bin padbridge-xinput-probe
+      - name: Read XInput slots on disposable Windows CI (no hardware modifications)
+        run: cargo run --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc --bin padbridge-xinput-probe -- --snapshot
+      - name: Compile native Windows/Tauri integration
+        run: cargo check --manifest-path src-tauri/Cargo.toml --features desktop
+      - name: Build portable XInput snapshot diagnostic (no driver or service)
+        shell: pwsh
+        run: |
+          cargo build --manifest-path src-tauri/Cargo.toml --no-default-features --features xinput-probe-poc --bin padbridge-xinput-probe
+          if ($LASTEXITCODE -ne 0) { throw "XInput read-only build failed" }
+          New-Item -ItemType Directory -Force -Path vm-xinput-kit | Out-Null
+          Copy-Item src-tauri/target/debug/padbridge-xinput-probe.exe vm-xinput-kit/
+          Copy-Item scripts/collect_vm_xinput_baseline.ps1 vm-xinput-kit/
+          Copy-Item scripts/compare_xinput_snapshots.py vm-xinput-kit/
+          Copy-Item docs/VM_XINPUT_FIRST_RUN.md vm-xinput-kit/README.md
+          Copy-Item docs/ARCHITECTURE_XINPUT_DECISION.md vm-xinput-kit/
+          (Get-FileHash vm-xinput-kit/padbridge-xinput-probe.exe -Algorithm SHA256).Hash |
+            Set-Content vm-xinput-kit/padbridge-xinput-probe.exe.sha256.txt
+      - name: Publish VM-only read-only XInput kit (no driver)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PadBridge-XInput-ReadOnly-Windows-x64
+          path: vm-xinput-kit/
+          if-no-files-found: error
+          retention-days: 7
+

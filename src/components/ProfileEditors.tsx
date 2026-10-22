@@ -34,7 +34,7 @@ export function DeadzoneEditor({ profile, onChange }: { profile: Profile; onChan
         </label>
       ))}
       <p className="muted m-0 text-xs">
-        Limites autorisées : 0 à 0,5. Ces réglages agissent sur la sortie de PadBridge uniquement, pas sur la manette ni son firmware.
+        Limites autorisées : 0 à 0,5. Ces réglages modifient l'aperçu PadBridge. En mode natif, ils ne changent pas les commandes reçues par les jeux.
       </p>
     </div>
   );
@@ -67,15 +67,16 @@ export function MappingEditor({ profile, onChange }: { profile: Profile; onChang
         <button className="btn" onClick={() => onChange({ ...profile, mapping: {} })}>Rétablir le préréglage standard</button>
       </div>
       <table className="data">
+        <caption className="sr-only">Mapping des touches du profil</caption>
         <thead>
-          <tr><th>Touche de la manette</th><th>Action envoyée au jeu</th></tr>
+          <tr><th scope="col">Touche de la manette</th><th scope="col">Action calculée (aperçu)</th></tr>
         </thead>
         <tbody>
           {PS_BUTTONS.map((b) => {
             const hasStandard = STANDARD_PRESET[b] !== undefined;
             return (
               <tr key={b}>
-                <td><label htmlFor={`map-${b}`}>{psButtonLabel[b]}</label></td>
+                <th scope="row"><label htmlFor={`map-${b}`}>{psButtonLabel[b]}</label></th>
                 <td>
                   <select
                     id={`map-${b}`}

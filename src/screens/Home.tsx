@@ -43,9 +43,10 @@ function Prerequisites({ report }: { report: DiagnosticsReport | null }) {
 }
 
 function ControllerCard({
-  view, profileName, onChanged, onTest,
+  view, profileName, onChanged, onTest, xinputAvailable,
 }: {
   view: ControllerView; profileName: string; onChanged: () => Promise<void>; onTest: () => void;
+  xinputAvailable: boolean;
 }) {
   const { device, state } = view;
   const [confirming, setConfirming] = useState(false);
@@ -118,13 +119,16 @@ function ControllerCard({
         <button className="btn" onClick={() => void activate("native")} disabled={busy || !usable || view.mode === "native"}>
           Mode natif
         </button>
-        <button className="btn" onClick={() => setConfirming(true)} disabled={busy || !usable || virtualActive}>
+        <button className="btn" onClick={() => setConfirming(true)} disabled={busy || !usable || virtualActive || !xinputAvailable}>
           Compatibilité XInput…
         </button>
         {virtualActive && (
           <button className="btn" onClick={() => void stop()} disabled={busy}>Arrêter la manette virtuelle</button>
         )}
       </div>
+      {!xinputAvailable && (
+        <p className="muted m-0 text-xs">Mode XInput indisponible : PadBridge ne crée pas encore de manette Xbox virtuelle. Le mode natif fonctionne sans pilote supplémentaire.</p>
+      )}
 
       {confirming && (
         <div className="notice notice-warn" role="group" aria-label="Confirmer le mode XInput">
@@ -178,7 +182,7 @@ export function Home({ controllers, loading, refresh, profiles, settings, update
           <ol className="m-0 pl-5">
             <li>Reliez la manette en USB (câble de données) ou appairez-la en Bluetooth dans les paramètres Windows.</li>
             <li>Vérifiez qu'elle apparaît ci-dessous, puis cliquez sur « Tester ma manette ».</li>
-            <li>Gardez le mode natif si votre jeu reconnaît déjà les manettes PlayStation ; sinon essayez le mode XInput.</li>
+            <li>Gardez le mode natif si votre jeu reconnaît déjà les manettes PlayStation. Le mode XInput sera disponible après validation de notre pilote virtuel.</li>
           </ol>
           <p className="muted mb-3 mt-3">
             PadBridge ne garantit pas la compatibilité avec tous les jeux (anti-triche, lanceurs…) et n'est affilié ni à Sony ni à Microsoft.
@@ -206,6 +210,7 @@ export function Home({ controllers, loading, refresh, profiles, settings, update
           <ControllerCard
             key={c.device.deviceId}
             view={c}
+            xinputAvailable={report?.backend.available ?? false}
             profileName={profileName(c.profileId)}
             onChanged={refresh}
             onTest={() => { selectDevice(c.device.deviceId); goto("test"); }}

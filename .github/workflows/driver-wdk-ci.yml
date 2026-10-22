@@ -1,0 +1,79 @@
+name: PadBridge Driver WDK (build only)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/driver-wdk-ci.yml"
+      - "driver/poc-vhf/**"
+      - "src-tauri/src/virtual_pad/vhf_protocol.rs"
+      - "src-tauri/src/virtual_pad.rs"
+      - "scripts/verify_vhf_contract.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  driver-wdk:
+    name: Compile unsigned KMDF/VHF driver (x64)
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Validate C/Rust HID wire contract (read-only static parsing)
+        run: python scripts/verify_vhf_contract.py --self-test
+
+      # Runner windows-2022 ships VS 2022 + SDK/WDK 26100.
+      # This workflow NEVER installs, loads, test-signs or starts any driver.
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Verify Windows Driver Kit 26100 components
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          msbuild -version
+          $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10'
+          $required = @(
+            'Include\10.0.26100.0\km\ntddk.h',
+            'Include\10.0.26100.0\shared\vhf.h',
+            'Lib\10.0.26100.0\km\x64\VhfKm.lib'
+          )
+          foreach ($relative in $required) {
+            $path = Join-Path $kits $relative
+            if (!(Test-Path -LiteralPath $path)) { throw "Missing WDK dependency: $path" }
+            Write-Host "WDK OK: $path"
+          }
+
+      - name: Build unsigned kernel driver source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          msbuild 'driver\poc-vhf\PadBridgeVhf.vcxproj' /t:Build /m:1 /nr:false /nologo /v:minimal /p:Configuration=Debug /p:Platform=x64 /p:SignMode=Off
+          if ($LASTEXITCODE -ne 0) {
+            throw "WDK KMDF compilation failed (exit $LASTEXITCODE). No driver installed."
+          }
+
+      - name: Confirm compiled file exists (never execute it)
+        id: sys
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem 'driver/poc-vhf' -Filter 'PadBridgeVhf.sys' -File -Recurse)
+          if ($files.Count -ne 1) {
+            throw "Expected exactly one PadBridgeVhf.sys; found $($files.Count)."
+          }
+          $file = $files[0]
+          Write-Host "Unsigned .sys compiled: $($file.FullName)"
+          Write-Host "Size: $($file.Length) bytes"
+          Write-Host "SHA256: $((Get-FileHash -Algorithm SHA256 $file.FullName).Hash)"
+          "driver_path=$($file.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Archive unsigned build for inspection only (24h)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PadBridgeVhf-unsigned-build-only
+          path: ${{ steps.sys.outputs.driver_path }}
+          retention-days: 1
+          if-no-files-found: error

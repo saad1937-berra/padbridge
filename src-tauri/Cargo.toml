@@ -1,5 +1,6 @@
 [package]
 name = "padbridge"
+authors = ["Saad Berra"]
 version = "0.1.0"
 description = "PadBridge — compatibilité et personnalisation des manettes PlayStation sous Windows (projet non affilié à Sony)"
 edition = "2021"
@@ -25,6 +26,36 @@ desktop = [
 ]
 # Activée automatiquement par `tauri build`
 custom-protocol = ["desktop", "tauri/custom-protocol"]
+# Prototype Windows dormant : transport direct a l'interface KMDF.
+# Pas de service installe, de droits eleves, d'IPC ou de branchement Tauri.
+broker-poc = ["dep:windows-sys"]
+# One-shot local named-pipe service preview (DENIES injection).
+# Explicit opt-in only; no installer, SCM registration or autostart.
+broker-service-poc = ["broker-poc", "windows-sys/Win32_System_Pipes", "windows-sys/Win32_Security_Authorization", "windows-sys/Win32_System_Threading"]
+# Inert SCM START/STOP status skeleton. No IPC or kernel transport starts.
+broker-scm-poc = ["broker-service-poc", "windows-sys/Win32_System_Services", "windows-sys/Win32_System_Registry"]
+# Standalone read-only XInputGetState snapshot: no Tauri, driver, HID or service.
+xinput-probe-poc = ["dep:windows-sys", "windows-sys/Win32_System_LibraryLoader"]
+
+[[bin]]
+name = "padbridge-xinput-probe"
+path = "src/bin/padbridge-xinput-probe.rs"
+required-features = ["xinput-probe-poc"]
+
+[[bin]]
+name = "padbridge-broker-preview"
+path = "src/bin/padbridge-broker-preview.rs"
+required-features = ["broker-service-poc"]
+
+[[bin]]
+name = "padbridge-broker-probe"
+path = "src/bin/padbridge-broker-probe.rs"
+required-features = ["broker-service-poc"]
+
+[[bin]]
+name = "padbridge-broker-scm"
+path = "src/bin/padbridge-broker-scm.rs"
+required-features = ["broker-scm-poc"]
 
 [build-dependencies]
 tauri-build = { version = "2", optional = true , features = [] }
@@ -35,11 +66,12 @@ serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", optional = true }
 tracing-appender = { version = "0.2", optional = true }
-tauri = { version = "2", optional = true , features = [] }
+tauri = { version = "2", optional = true, features = ["tray-icon"] }
 tauri-plugin-dialog = { version = "2", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 hidapi = { version = "2", default-features = false, features = ["windows-native"], optional = true }
+windows-sys = { version = "=0.60.2", optional = true, features = ["Win32_Devices_DeviceAndDriverInstallation", "Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_Security"] }
 
 [dev-dependencies]
 tempfile = "3"

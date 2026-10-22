@@ -34,7 +34,7 @@ broker-service-poc = ["broker-poc", "windows-sys/Win32_System_Pipes", "windows-s
 # Inert SCM START/STOP status skeleton. No IPC or kernel transport starts.
 broker-scm-poc = ["broker-service-poc", "windows-sys/Win32_System_Services", "windows-sys/Win32_System_Registry"]
 # Standalone read-only XInputGetState snapshot: no Tauri, driver, HID or service.
-xinput-probe-poc = []
+xinput-probe-poc = ["dep:windows-sys", "windows-sys/Win32_System_LibraryLoader"]
 
 [[bin]]
 name = "padbridge-xinput-probe"

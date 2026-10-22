@@ -7,7 +7,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('before', 'after-idle', 'after-activity')]
+    [ValidateSet('before', 'after-idle', 'after-activity', 'after-close')]
     [string]$Stage,
 
     [string]$ProbePath = '',

@@ -230,9 +230,11 @@ mod tests {
         assert_eq!(session.heartbeat().unwrap_err().kind(), io::ErrorKind::TimedOut);
         assert!(session.is_closed());
         assert_eq!(session.heartbeat().unwrap_err().kind(), io::ErrorKind::BrokenPipe);
-        let reports = &log.lock().unwrap().reports;
-        assert_eq!(reports.len(), 3, "no cached active input after expiry");
-        assert_eq!(reports[2], encode(&OutputState::neutral()));
+        {
+            let state = log.lock().unwrap();
+            assert_eq!(state.reports.len(), 3, "no cached active input after expiry");
+            assert_eq!(state.reports[2], encode(&OutputState::neutral()));
+        } // Drop the mutex guard before BrokerSession::Drop needs the transport.
         drop(session);
         assert_eq!(log.lock().unwrap().reports.len(), 3, "close remains idempotent");
     }

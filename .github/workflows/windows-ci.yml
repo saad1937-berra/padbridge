@@ -96,6 +96,7 @@ jobs:
           Copy-Item src-tauri/target/debug/padbridge-xinput-probe.exe vm-xinput-kit/
           Copy-Item scripts/collect_vm_xinput_baseline.ps1 vm-xinput-kit/
           Copy-Item scripts/compare_xinput_snapshots.py vm-xinput-kit/
+          Copy-Item scripts/check_xinput_cleanup.py vm-xinput-kit/
           Copy-Item docs/VM_XINPUT_FIRST_RUN.md vm-xinput-kit/README.md
           Copy-Item docs/ARCHITECTURE_XINPUT_DECISION.md vm-xinput-kit/
           (Get-FileHash vm-xinput-kit/padbridge-xinput-probe.exe -Algorithm SHA256).Hash |

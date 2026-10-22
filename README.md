@@ -6,6 +6,8 @@ Application Windows (Tauri 2 + React/TypeScript + moteur Rust) pour détecter, t
 
 **Objectif de distribution : PadBridge doit être gratuit et téléchargeable par tous.** Aucune licence payante ni création de compte ne devra être imposée aux utilisateurs. Ce choix concerne le produit final, **pas sa disponibilité actuelle** : le mode Xbox/XInput réel reste absent, aucune version publique complète n'est autorisée et la licence du code source n'est pas encore arrêtée. Consultez [la politique de diffusion](docs/PUBLIC_FREE_RELEASE_POLICY.md) et le [statut d'audit Xbox](docs/XBOX_PROVIDER_SELECTION_AUDIT.md).
 
+**Choix de backend Xbox :** aucun fournisseur XInput/XUSB n'est approuvé. L'[audit des candidats](docs/XBOX_PROVIDER_SELECTION_AUDIT.md), la [revue HIDMaestro](docs/HIDMAESTRO_XINPUT_EVALUATION.md) et le [contrôle d'admission](scripts/check_xinput_provider.py) empêchent une installation de pilote non vérifiée. Un certificat ajouté aux racines de confiance Windows ne sera jamais traité comme une formalité implicite.
+
 **Portée réelle du mode natif :** Windows réalise l'appairage Bluetooth et expose la manette aux jeux compatibles. PadBridge lit les rapports HID et affiche un aperçu des réglages, mais **ne modifie pas les entrées vues par les jeux en mode natif**. Les transformations de mapping et de zones mortes ne pourront affecter un jeu qu'après intégration et validation d'un backend virtuel adapté. Aucun pilote tiers ni pilote maison n'est installé par cette version.
 
 ## Démarrage sur Windows

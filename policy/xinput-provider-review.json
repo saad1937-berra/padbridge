@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "reviewed_on": "2026-10-22",
+  "selected_provider": "none",
+  "public_app_requires": {
+    "price_zero": true,
+    "signup_not_required": true,
+    "no_local_trust_root_installation": true,
+    "no_user_paid_provider_license": true,
+    "externally_verified_xinput": true,
+    "documented_redistribution_rights": true,
+    "signed_production_driver": true,
+    "safe_uninstall_and_coexistence": true,
+    "isolated_windows_test": true
+  },
+  "candidates": [
+    {
+      "id": "hidmaestro",
+      "name": "HIDMaestro",
+      "repository": "https://github.com/hifihedgehog/HIDMaestro",
+      "upstream_commit": "63cc6481f9e82fc8600bda8aaa65cb3271113a19",
+      "source_license": "MIT (repository LICENSE); embedded dependencies require separate review",
+      "xinput_claim": "XUSB companion and XInput supported according to upstream; not independently verified by PadBridge",
+      "installation": "UMDF2/XUSB components; creates and trusts self-signed HIDMaestroTestCert in LocalMachine Root and TrustedPublisher",
+      "trust_root_mutation": true,
+      "requires_paid_license": false,
+      "redistribution_review_complete": false,
+      "trusted_production_publisher_signature": false,
+      "independent_xinput_test": false,
+      "safe_uninstall_and_coexistence_test": false,
+      "release_approved": false,
+      "links": [
+        "https://github.com/hifihedgehog/HIDMaestro/blob/63cc6481f9e82fc8600bda8aaa65cb3271113a19/LICENSE",
+        "https://github.com/hifihedgehog/HIDMaestro/blob/63cc6481f9e82fc8600bda8aaa65cb3271113a19/docs/UNINSTALL.md",
+        "https://hidmaestro.org/docs/reference/driver-install-and-signing/"
+      ]
+    },
+    {
+      "id": "libvirtualhid",
+      "name": "LizardByte libvirtualhid",
+      "repository": "https://github.com/LizardByte/libvirtualhid",
+      "upstream_commit": null,
+      "source_license": "MIT public client library; Windows driver and broker LB-SAL 1.0",
+      "xinput_claim": "Xbox 360 XUSB companion documented; not independently verified by PadBridge",
+      "installation": "UMDF2 package and broker service; driver-backed devices require a machine license",
+      "trust_root_mutation": false,
+      "requires_paid_license": true,
+      "redistribution_review_complete": false,
+      "trusted_production_publisher_signature": false,
+      "independent_xinput_test": false,
+      "safe_uninstall_and_coexistence_test": false,
+      "release_approved": false,
+      "links": [
+        "https://github.com/LizardByte/libvirtualhid/blob/master/LICENSES/license-map.md",
+        "https://github.com/LizardByte/libvirtualhid/blob/master/LICENSES/LicenseRef-LizardByte-SAL-1.0.md",
+        "https://github.com/LizardByte/libvirtualhid/blob/master/docs/windows-driver.md"
+      ]
+    },
+    {
+      "id": "padbridge-vhf",
+      "name": "PadBridge generic VHF proof of concept",
+      "repository": "https://github.com/saad1937-berra/padbridge",
+      "upstream_commit": null,
+      "source_license": "PadBridge own code; project source license not yet selected",
+      "xinput_claim": "None. The existing VHF gamepad exposes generic HID, not proven XInput/XUSB",
+      "installation": "Unsigned experimental KMDF/VHF build-only; never deployed",
+      "trust_root_mutation": false,
+      "requires_paid_license": false,
+      "redistribution_review_complete": false,
+      "trusted_production_publisher_signature": false,
+      "independent_xinput_test": false,
+      "safe_uninstall_and_coexistence_test": false,
+      "release_approved": false,
+      "links": [
+        "https://github.com/saad1937-berra/padbridge"
+      ]
+    }
+  ]
+}

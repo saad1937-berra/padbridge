@@ -69,7 +69,7 @@ export default function App() {
           </button>
         ))}
         <p className="muted mt-auto px-3 text-xs">
-          Projet indépendant, non affilié à Sony ni à Microsoft.
+          {PADBRIDGE_BRAND.independence}
         </p>
       </nav>
 

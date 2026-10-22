@@ -1,5 +1,6 @@
 [package]
 name = "padbridge"
+authors = ["Saad Berra"]
 version = "0.1.0"
 description = "PadBridge — compatibilité et personnalisation des manettes PlayStation sous Windows (projet non affilié à Sony)"
 edition = "2021"

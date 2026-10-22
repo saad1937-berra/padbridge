@@ -10,7 +10,7 @@ param(
     [ValidateSet('before', 'after-idle', 'after-activity')]
     [string]$Stage,
 
-    [string]$ProbePath = (Join-Path $PSScriptRoot '..\src-tauri\target\debug\padbridge-xinput-probe.exe'),
+    [string]$ProbePath = '',
 
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\vm-evidence')
 )
@@ -37,6 +37,13 @@ if (-not ([string]$os.Caption -match 'Windows 11')) {
 Write-Host 'Hyper-V guest identified. Verify that a host-side checkpoint exists before proceeding.'
 Write-Host 'This command only collects the four XInput slots. No controller commands are sent.'
 
+if ([string]::IsNullOrWhiteSpace($ProbePath)) {
+    # Prefer the portable artifact: exe and collector in the same folder.
+    # Fall back to the repository debug build for developers.
+    $portable = Join-Path $PSScriptRoot 'padbridge-xinput-probe.exe'
+    $localBuild = Join-Path $PSScriptRoot '..\src-tauri\target\debug\padbridge-xinput-probe.exe'
+    $ProbePath = if (Test-Path -LiteralPath $portable -PathType Leaf) { $portable } else { $localBuild }
+}
 $binary = [System.IO.Path]::GetFullPath($ProbePath)
 if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) {
     throw "Missing XInput probe: $binary. Compile the read-only CLI first."

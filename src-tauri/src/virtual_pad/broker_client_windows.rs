@@ -181,6 +181,7 @@ mod tests {
 
     #[test]
     fn authenticated_ping_round_trip_uses_real_local_windows_pipe() {
+        let _serial = super::super::broker_pipe_windows::PIPE_TEST_MUTEX.lock().unwrap();
         // Runs on the disposable Windows CI runner, NEVER on a user's PC.
         // Does not touch a device, Bluetooth, SCM or kernel-mode driver.
         let sid = current_user_sid().expect("runner token");

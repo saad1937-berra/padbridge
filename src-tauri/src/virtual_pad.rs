@@ -7,6 +7,8 @@ pub mod backend;
 pub mod xinput_state_contract;
 // Unselected vendor-neutral Xbox provider lifecycle. No concrete driver backend.
 pub mod xbox_provider_adapter;
+// Versioned private provider IPC contract, no OS pipe/service or driver access.
+pub mod xbox_wire;
 pub mod null_backend;
 pub mod selected_backend;
 // Opt-in Win32 XInput API reader for isolated tests, not a selectable backend.

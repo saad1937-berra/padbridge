@@ -14,6 +14,10 @@
 - GitHub publiait le **20 octobre 2026** une release préliminaire `v2026.1020.1752.19` comportant un installeur Windows AMD64. Son statut *prerelease* ne vaut pas validation de compatibilité Windows, XInput ni EA FC 26.
 - Le fournisseur avertit que son support XUSB vise un protocole **non documenté publiquement par Microsoft** et demande des tests de régression par version Windows. À prendre en compte dans la maintenance.
 
+### HIDMaestro — projet MIT à audit de signature obligatoire
+
+HIDMaestro documente un compagnon XUSB/XInput et une bibliothèque .NET utilisable sous MIT, mais ses packages Windows UMDF2 sont signés au moyen d'un **certificat autosigné** ajouté à `LocalMachine\\Root` et `LocalMachine\\TrustedPublisher`. Sa désinstallation concerne un pilote partagé par plusieurs applications et peut aussi affecter le transport usbip-win2. Une licence MIT ne prouve pas qu'un tel flux de distribution convient au grand public : le certificat, la provenance des binaires, la compatibilité XInput réelle, les composants tiers et la coexistence devront être vérifiés. **Candidat non approuvé, aucune installation.** [Audit approfondi](HIDMAESTRO_XINPUT_EVALUATION.md).
+
 ### Autres pistes
 
 - **ViGEmBus** : projet historiquement efficace pour les manettes Xbox 360, mais son support officiel a pris fin. Nouvelles dépendances par défaut non recommandées sans maintenance et validation de provenance.

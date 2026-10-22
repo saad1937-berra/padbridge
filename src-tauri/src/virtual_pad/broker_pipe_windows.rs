@@ -37,6 +37,9 @@ use super::broker_ipc::{self, REQUEST_LEN};
 use super::broker_auth_windows::verify_last_sender;
 
 pub const PIPE_NAME: &str = r"\\.\pipe\PadBridge.Broker.POC.v1";
+// In-process CI tests share the one-instance pipe name. Never run them concurrently.
+#[cfg(test)]
+pub(crate) static PIPE_TEST_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
 // Win32 CreateNamedPipeW open-mode flag, PIPE_ACCESS_DUPLEX.
 const PIPE_ACCESS_DUPLEX: u32 = 0x00000003;
 /// Per-operation bound. The preview is not a production service.
@@ -289,6 +292,7 @@ mod tests {
 
     #[test]
     fn scm_stop_interrupts_real_pending_connect_without_a_client() {
+        let _serial = PIPE_TEST_MUTEX.lock().unwrap();
         use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
         use std::thread;
         use std::time::{Duration, Instant};

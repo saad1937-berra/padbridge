@@ -11,6 +11,9 @@ pub mod vhf_protocol;
 pub mod vhf_broker;
 // Protocol v1 IPC (aucun acces materiel, tests deterministes).
 pub mod broker_ipc;
+// Windows-only opt-in PING probe, no driver access or Tauri hooks.
+#[cfg(all(windows, feature = "broker-service-poc"))]
+pub mod broker_client_windows;
 #[cfg(all(windows, feature = "broker-service-poc"))]
 pub mod broker_pipe_windows;
 #[cfg(all(windows, feature = "broker-service-poc"))]

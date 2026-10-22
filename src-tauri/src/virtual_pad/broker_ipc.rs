@@ -40,6 +40,7 @@ pub enum ProtocolError {
     ReservedField,
     InvalidCommand,
     InvalidReport,
+    InvalidStatus,
 }
 
 pub fn decode(frame: &[u8]) -> Result<Command, ProtocolError> {
@@ -91,6 +92,32 @@ pub fn response(status: Status) -> [u8; RESPONSE_LEN] {
     buf[4] = VERSION;
     buf[5] = status as u8;
     buf
+}
+
+/// Strictly parse a response from the local broker. Unknown statuses and
+/// reserved bytes are never treated as success.
+pub fn decode_response(frame: &[u8]) -> Result<Status, ProtocolError> {
+    if frame.len() != RESPONSE_LEN {
+        return Err(ProtocolError::InvalidLength);
+    }
+    if &frame[..4] != MAGIC {
+        return Err(ProtocolError::InvalidMagic);
+    }
+    if frame[4] != VERSION {
+        return Err(ProtocolError::InvalidVersion);
+    }
+    if frame[6] != 0 || frame[7] != 0 {
+        return Err(ProtocolError::ReservedField);
+    }
+    match frame[5] {
+        0 => Ok(Status::Ok),
+        1 => Ok(Status::Malformed),
+        2 => Ok(Status::Unauthorized),
+        3 => Ok(Status::Disabled),
+        4 => Ok(Status::DeviceUnavailable),
+        5 => Ok(Status::Throttled),
+        _ => Err(ProtocolError::InvalidStatus),
+    }
 }
 
 pub fn neutral_request() -> [u8; REQUEST_LEN] {
@@ -158,6 +185,30 @@ mod tests {
             (Status::Ok, false));
         assert_eq!(handle_dry_run(&encode_request(Command::Close)),
             (Status::Ok, true));
+    }
+
+    #[test]
+    fn response_round_trip_strict_statuses() {
+        for status in [
+            Status::Ok, Status::Malformed, Status::Unauthorized,
+            Status::Disabled, Status::DeviceUnavailable, Status::Throttled,
+        ] {
+            assert_eq!(decode_response(&response(status)), Ok(status));
+        }
+        let good = response(Status::Ok);
+        assert_eq!(decode_response(&good[..7]), Err(ProtocolError::InvalidLength));
+        let mut invalid = good;
+        invalid[0] ^= 0xff;
+        assert_eq!(decode_response(&invalid), Err(ProtocolError::InvalidMagic));
+        invalid = good;
+        invalid[4] = 2;
+        assert_eq!(decode_response(&invalid), Err(ProtocolError::InvalidVersion));
+        invalid = good;
+        invalid[5] = 255;
+        assert_eq!(decode_response(&invalid), Err(ProtocolError::InvalidStatus));
+        invalid = good;
+        invalid[7] = 1;
+        assert_eq!(decode_response(&invalid), Err(ProtocolError::ReservedField));
     }
 
     #[test]
